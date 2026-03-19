@@ -1,0 +1,7 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(find /c/Users/matte/Desktop/vibe_projects/android_audio_transcriber/app/src -type f \\\\\\(-name *.kt -o -name *.xml \\\\\\))"
+    ]
+  }
+}
