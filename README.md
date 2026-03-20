@@ -6,7 +6,7 @@ Trasforma i tuoi audio, note vocali e lezioni universitarie in verbali, riassunt
 
 <br>
 
-[![Scarica l'App](https://img.shields.io/badge/📥_SCARICA_L'APP_QUI_(APK)-Verde_Smeraldo?style=for-the-badge&color=00D28A)](https://github.com/MatteoScorte/android_AI_voice_noter/releases/latest)
+[![Scarica l'App](https://img.shields.io/badge/📥_SCARICA_L'APP_QUI_(APK)-Verde_Smeraldo?style=for-the-badge&color=00D28A)](https://github.com/MatteoScorte/android_AI_voice_noter/raw/main/AI_Voice_Noter_v1.0.apk)
 
 *Clicca il pulsante verde qui sopra per andare alla pagina di download!*
 
@@ -19,7 +19,7 @@ Trasforma i tuoi audio, note vocali e lezioni universitarie in verbali, riassunt
 Se non sei un programmatore e vuoi solo usare l'applicazione sul tuo telefono Android, segui questi semplici passaggi:
 
 ### Passo 1: Scaricare l'app
-1. Clicca sul grande pulsante verde **"📥 SCARICA L'APP QUI (APK)"** che si trova in cima a questa pagina, oppure clicca [qui](https://github.com/MatteoScorte/android_AI_voice_noter/releases/latest).
+1. Clicca sul grande pulsante verde **"📥 SCARICA L'APP QUI (APK)"** che si trova in cima a questa pagina, oppure clicca [qui](https://github.com/MatteoScorte/android_AI_voice_noter/raw/main/AI_Voice_Noter_v1.0.apk).
 2. Nella nuova pagina che si apre, scorri verso il basso fino alla sezione intitolata **"Assets"**.
 3. Clicca sul file che finisce per **`.apk`** (potrebbe chiamarsi `app-release.apk` o simile).
 4. Il tuo telefono inizierà automaticamente a scaricare il file.
