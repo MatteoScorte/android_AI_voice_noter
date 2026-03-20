@@ -22,6 +22,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.*
@@ -536,23 +537,33 @@ fun TranscriptScreen(
                             onToggle = { showRawTranscript = !showRawTranscript },
                             showToggle = true,
                             headerTrailing = {
-                                IconButton(
-                                    onClick = { copyToClipboard(context, uiState.rawTranscript, "Transcription") },
-                                    modifier = Modifier.size(32.dp)
-                                ) {
-                                    Icon(Icons.Default.ContentCopy, "Copy", tint = AccentGreen, modifier = Modifier.size(18.dp))
+                                Row {
+                                    IconButton(
+                                        onClick = { shareText(context, uiState.rawTranscript) },
+                                        modifier = Modifier.size(32.dp)
+                                    ) {
+                                        Icon(Icons.Default.Share, "Condividi", tint = AccentGreen, modifier = Modifier.size(18.dp))
+                                    }
+                                    IconButton(
+                                        onClick = { copyToClipboard(context, uiState.rawTranscript, "Transcription") },
+                                        modifier = Modifier.size(32.dp)
+                                    ) {
+                                        Icon(Icons.Default.ContentCopy, "Copia", tint = AccentGreen, modifier = Modifier.size(18.dp))
+                                    }
                                 }
                             }
                         ) {
-                            Column {
-                                uiState.rawTranscript.split("\n\n").forEach { paragraph ->
-                                    if (paragraph.isNotBlank()) {
-                                        Text(
-                                            paragraph,
-                                            color = TextGray,
-                                            modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
-                                            style = MaterialTheme.typography.bodySmall.copy(lineHeight = 20.sp)
-                                        )
+                            SelectionContainer {
+                                Column {
+                                    uiState.rawTranscript.split("\n\n").forEach { paragraph ->
+                                        if (paragraph.isNotBlank()) {
+                                            Text(
+                                                paragraph,
+                                                color = TextGray,
+                                                modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
+                                                style = MaterialTheme.typography.bodySmall.copy(lineHeight = 20.sp)
+                                            )
+                                        }
                                     }
                                 }
                             }
@@ -1153,7 +1164,6 @@ private fun SpeakerRenameCard(
                         Icon(Icons.Default.PersonOutline, null, tint = AccentGreen, modifier = Modifier.size(24.dp))
                         OutlinedTextField(
                             value = editText, onValueChange = { editText = it }, singleLine = true,
-                            label = { Text(originalLabel, style = MaterialTheme.typography.labelSmall) },
                             modifier = Modifier.weight(1f),
                             colors = OutlinedTextFieldDefaults.colors(
                                 focusedTextColor = TextWhite, unfocusedTextColor = TextWhite,

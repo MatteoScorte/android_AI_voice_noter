@@ -48,8 +48,9 @@ data class Meeting(
     // Whether this meeting has been explicitly shared to Supabase cloud storage
     @SerializedName("isShared") val isShared: Boolean = false,
     // Category used for LLM analysis (0 = none / legacy meeting)
+    // Nullable for backward-compatibility with meetings recorded before this feature
     @SerializedName("categoryId") val categoryId: Int = 0,
-    @SerializedName("categoryName") val categoryName: String = "",
-    @SerializedName("categoryEmoji") val categoryEmoji: String = "",
-    @SerializedName("categoryColorHex") val categoryColorHex: String = ""
+    @SerializedName("categoryName") val categoryName: String? = null,
+    @SerializedName("categoryEmoji") val categoryEmoji: String? = null,
+    @SerializedName("categoryColorHex") val categoryColorHex: String? = null
 )

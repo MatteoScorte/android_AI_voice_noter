@@ -349,7 +349,8 @@ class TranscriptViewModel(application: Application) : AndroidViewModel(applicati
         val current = _uiState.value
         val id = current.meetingId
 
-        val updatedTranscript = current.finalTranscript.replace(originalLabel, trimmed)
+        val updatedFinalTranscript = current.finalTranscript.replace(originalLabel, trimmed)
+        val updatedRawTranscript = current.rawTranscript.replace(originalLabel, trimmed)
 
         val updatedSpeakers = LinkedHashMap<String, String>()
         current.speakers.forEach { (orig, display) ->
@@ -357,7 +358,11 @@ class TranscriptViewModel(application: Application) : AndroidViewModel(applicati
             else updatedSpeakers[orig] = display
         }
 
-        _uiState.value = current.copy(finalTranscript = updatedTranscript, speakers = updatedSpeakers)
+        _uiState.value = current.copy(
+            finalTranscript = updatedFinalTranscript,
+            rawTranscript = updatedRawTranscript,
+            speakers = updatedSpeakers
+        )
 
         viewModelScope.launch {
             meetingRepository.getMeeting(id)?.let { existing ->
@@ -365,7 +370,11 @@ class TranscriptViewModel(application: Application) : AndroidViewModel(applicati
                 newAliases.remove(originalLabel)
                 newAliases[trimmed] = trimmed
                 meetingRepository.updateMeeting(
-                    existing.copy(finalTranscript = updatedTranscript, speakerAliases = newAliases)
+                    existing.copy(
+                        finalTranscript = updatedFinalTranscript,
+                        rawTranscript = updatedRawTranscript,
+                        speakerAliases = newAliases
+                    )
                 )
             }
         }
