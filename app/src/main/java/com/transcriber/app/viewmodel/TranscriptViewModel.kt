@@ -15,6 +15,8 @@ import com.transcriber.app.data.ActionItem
 import com.transcriber.app.data.MeetingRepository
 import com.transcriber.app.data.MeetingStatus
 import com.transcriber.app.data.OutlineItem
+import com.transcriber.app.data.PromptCategoryEntity
+import com.transcriber.app.data.PromptCategoryRepository
 import com.transcriber.app.data.SettingsRepository
 import com.transcriber.app.data.SupabaseClient
 import com.transcriber.app.data.WordTimestamp
@@ -62,7 +64,13 @@ data class TranscriptUiState(
     val phrases: List<Phrase> = emptyList(),
     // Cloud sharing
     val isShared: Boolean = false,
-    val isSharing: Boolean = false
+    val isSharing: Boolean = false,
+    // Category picker
+    val categories: List<PromptCategoryEntity> = emptyList(),
+    val categoryId: Int = 0,
+    val categoryName: String = "",
+    val categoryEmoji: String = "",
+    val categoryColorHex: String = ""
 )
 
 class TranscriptViewModel(application: Application) : AndroidViewModel(application) {
@@ -79,10 +87,19 @@ class TranscriptViewModel(application: Application) : AndroidViewModel(applicati
 
     private val meetingRepository = MeetingRepository(application)
     private val settingsRepository = SettingsRepository(application)
+    private val promptCategoryRepository = PromptCategoryRepository(application)
     private val deepgramClient = DeepgramClient()
     private val transcriptProcessor = TranscriptProcessor()
 
     private val _uiState = MutableStateFlow(TranscriptUiState())
+
+    init {
+        viewModelScope.launch {
+            promptCategoryRepository.allCategories.collect { cats ->
+                _uiState.value = _uiState.value.copy(categories = cats)
+            }
+        }
+    }
     val uiState: StateFlow<TranscriptUiState> = _uiState.asStateFlow()
 
     // ── Audio Player (foreground service) ─────────────────────────────────────
@@ -178,6 +195,10 @@ class TranscriptViewModel(application: Application) : AndroidViewModel(applicati
             wordTimestamps = m.wordTimestamps ?: emptyList(),
             phrases = groupIntoPhrases(m.wordTimestamps ?: emptyList()),
             isShared = m.isShared,
+            categoryId = m.categoryId,
+            categoryName = m.categoryName.orEmpty(),
+            categoryEmoji = m.categoryEmoji.orEmpty(),
+            categoryColorHex = m.categoryColorHex.orEmpty(),
             // ── Bug 2 fix: restore processing indicator if the background job is still alive ──
             isProcessing   = processingNow,
             processingStep = if (isReload && processingNow) prev.processingStep else "",
@@ -399,7 +420,7 @@ class TranscriptViewModel(application: Application) : AndroidViewModel(applicati
     // ── Full processing pipeline ──────────────────────────────────────────────
 
     @OptIn(kotlinx.coroutines.DelicateCoroutinesApi::class)
-    fun startFullProcessing(meetingId: String) {
+    fun startFullProcessing(meetingId: String, category: PromptCategoryEntity) {
         activeProcessingIds.add(meetingId)
         kotlinx.coroutines.GlobalScope.launch {
             try {
@@ -462,7 +483,8 @@ class TranscriptViewModel(application: Application) : AndroidViewModel(applicati
                 // ── STEP 2: ANALISI LLM ──
                 val processingResult = transcriptProcessor.processTranscript(
                     apiKey = openRouterKey, model = model,
-                    rawTranscript = rawText, meetingStartTime = meeting.createdAt
+                    rawTranscript = rawText, meetingStartTime = meeting.createdAt,
+                    categorySystemPrompt = category.systemPrompt
                 )
                 if (processingResult.isFailure) { onError(meetingId, "Errore LLM: ${processingResult.exceptionOrNull()?.message}"); return@launch }
 
@@ -487,7 +509,11 @@ class TranscriptViewModel(application: Application) : AndroidViewModel(applicati
                     overview = resultData.overview,
                     outline = resultData.outline,
                     bulletNotes = resultData.bulletNotes,
-                    actionItems = resultData.actionItems
+                    actionItems = resultData.actionItems,
+                    categoryId = category.id,
+                    categoryName = category.name,
+                    categoryEmoji = category.emoji,
+                    categoryColorHex = category.colorHex
                 )
 
                 meetingRepository.updateMeeting(completedMeeting)
@@ -504,7 +530,11 @@ class TranscriptViewModel(application: Application) : AndroidViewModel(applicati
                     bulletNotes = resultData.bulletNotes,
                     actionItems = resultData.actionItems,
                     wordTimestamps = wordTimestamps,
-                    phrases = groupIntoPhrases(wordTimestamps)
+                    phrases = groupIntoPhrases(wordTimestamps),
+                    categoryId = category.id,
+                    categoryName = category.name,
+                    categoryEmoji = category.emoji,
+                    categoryColorHex = category.colorHex
                 )
 
                 // Cloud sync is now explicit via shareMeeting() — no automatic upload here.

@@ -10,10 +10,13 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
+import com.transcriber.app.ui.screens.CategoryEditorScreen
+import com.transcriber.app.ui.screens.CategoryManagerScreen
 import com.transcriber.app.ui.screens.HomeScreen
 import com.transcriber.app.ui.screens.SettingsScreen
 import com.transcriber.app.ui.screens.TranscriptScreen
 import com.transcriber.app.ui.theme.TranscriberTheme
+import com.transcriber.app.viewmodel.CategoryViewModel
 import com.transcriber.app.viewmodel.HomeViewModel
 import com.transcriber.app.viewmodel.SettingsViewModel
 import com.transcriber.app.viewmodel.TranscriptViewModel
@@ -29,7 +32,6 @@ fun TranscriberApp() {
                 val viewModel: HomeViewModel = viewModel()
                 val uiState by viewModel.uiState.collectAsState()
 
-                // Navigate to TranscriptScreen when an inbox item is promoted to a Meeting
                 LaunchedEffect(Unit) {
                     viewModel.navigationEvent.collect { meetingId ->
                         navController.navigate("transcript/$meetingId")
@@ -59,14 +61,14 @@ fun TranscriberApp() {
                 val viewModel: TranscriptViewModel = viewModel()
                 val uiState by viewModel.uiState.collectAsState()
 
-                androidx.compose.runtime.LaunchedEffect(meetingId) {
+                LaunchedEffect(meetingId) {
                     viewModel.loadMeeting(meetingId)
                 }
 
                 TranscriptScreen(
                     uiState = uiState,
                     onBack = { navController.popBackStack() },
-                    onStartProcessing = { viewModel.startFullProcessing(meetingId) },
+                    onStartProcessing = { category -> viewModel.startFullProcessing(meetingId, category) },
                     onRenameTitle = { viewModel.renameTitle(it) },
                     onSetEditingTitle = { viewModel.setEditingTitle(it) },
                     onRenameSpeaker = { original, newName -> viewModel.renameSpeaker(original, newName) },
@@ -90,7 +92,39 @@ fun TranscriberApp() {
                     onUpdateSupabaseKey = { viewModel.updateSupabaseAnonKey(it) },
                     onUpdateSyncEnabled = { viewModel.updateSupabaseSyncEnabled(it) },
                     onSave = { viewModel.saveSettings() },
-                    onSyncNow = { viewModel.syncNow() }
+                    onSyncNow = { viewModel.syncNow() },
+                    onPromptCategoriesClick = { navController.navigate("category_manager") }
+                )
+            }
+
+            // ── Category Manager ───────────────────────────────────────────────
+            composable("category_manager") {
+                val viewModel: CategoryViewModel = viewModel()
+                CategoryManagerScreen(
+                    viewModel = viewModel,
+                    onBack = { navController.popBackStack() },
+                    onNewCategory = { navController.navigate("category_editor") },
+                    onEditCategory = { id -> navController.navigate("category_editor?categoryId=$id") }
+                )
+            }
+
+            // ── Category Editor ────────────────────────────────────────────────
+            // categoryId = 0 means "new category" (default value)
+            composable(
+                "category_editor?categoryId={categoryId}",
+                arguments = listOf(
+                    navArgument("categoryId") {
+                        type = NavType.IntType
+                        defaultValue = 0
+                    }
+                )
+            ) { backStackEntry ->
+                val categoryId = backStackEntry.arguments?.getInt("categoryId") ?: 0
+                val viewModel: CategoryViewModel = viewModel()
+                CategoryEditorScreen(
+                    categoryId = categoryId,
+                    viewModel = viewModel,
+                    onBack = { navController.popBackStack() }
                 )
             }
         }

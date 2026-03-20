@@ -21,14 +21,16 @@ data class ProcessorResult(
 class TranscriptProcessor(private val openRouterClient: OpenRouterClient = OpenRouterClient()) {
 
     companion object {
-        private val SYSTEM_PROMPT = """
+        private val HEADER = """
 Sei un assistente esperto nell'analisi di riunioni professionali in italiano.
 Ricevi una trascrizione grezza diarizzata e produci un'analisi strutturata completa.
 
 REGOLE GENERALI:
 1. CORREZIONE: Correggi errori grammaticali e rimuovi esitazioni.
 2. SPEAKER: Identifica i nomi reali degli interlocutori. Usa i nomi mappati invece di "Speaker X".
+        """.trimIndent()
 
+        private val DEFAULT_VERBALE_SECTION = """
 ISTRUZIONI SPECIFICHE PER IL CAMPO "verbale" (Trascrizione Completa):
 Sei un professionista esperto nel prendere appunti e redigere verbali dettagliati. Il tuo compito è trasformare la trascrizione grezza fornita in appunti completi, strutturati e direttamente utilizzabili. Il contesto può variare: lezioni universitarie, riunioni di lavoro, o sessioni di brainstorming.
 
@@ -43,7 +45,9 @@ Formato di output per il "verbale":
 * Usa intestazioni (## e ###) per separare i macro-argomenti, le fasi della riunione o i capitoli della lezione.
 * Usa elenchi puntati per caratteristiche, regole o concetti correlati per favorire la leggibilità.
 * Usa il **grassetto** per evidenziare termini tecnici, decisioni finali o concetti cardine.
+        """.trimIndent()
 
+        private val FOOTER = """
 OUTPUT JSON OBBLIGATORIO (solo JSON puro, senza markdown ```json):
 {
   "speaker_map": {
@@ -68,7 +72,7 @@ OUTPUT JSON OBBLIGATORIO (solo JSON puro, senza markdown ```json):
     {"task": "Contattare il fornitore per confermare le date di consegna", "assignee": "Laura", "deadline": ""},
     {"task": "Inviare il verbale a tutti i partecipanti", "assignee": "", "deadline": "domani"}
   ],
-  "verbale": "Inserisci qui gli appunti generati applicando alla lettera le 'Regole fondamentali per la generazione' specificate sopra ed usando la corretta formattazione Markdown richiesta."
+  "verbale": "Inserisci qui gli appunti generati applicando alla lettera le istruzioni specificate sopra ed usando la corretta formattazione Markdown richiesta."
 }
 
 ISTRUZIONI DETTAGLIATE AGGIUNTIVE:
@@ -78,13 +82,19 @@ ISTRUZIONI DETTAGLIATE AGGIUNTIVE:
 - bullet_notes: 5-15 punti che riassumono decisioni, opinioni rilevanti e informazioni tecniche; completi e autonomi
 - action_items: estrai SOLO i compiti espliciti o chiaramente impliciti; se assignee o deadline manchevoli lascia stringa vuota
         """.trimIndent()
+
+        fun buildSystemPrompt(categoryPrompt: String): String {
+            val verbaleSection = if (categoryPrompt.isNotBlank()) categoryPrompt else DEFAULT_VERBALE_SECTION
+            return "$HEADER\n\n$verbaleSection\n\n$FOOTER"
+        }
     }
 
     suspend fun processTranscript(
         apiKey: String,
         model: String,
         rawTranscript: String,
-        meetingStartTime: Long
+        meetingStartTime: Long,
+        categorySystemPrompt: String = ""
     ): Result<ProcessorResult> {
         val dateStr = SimpleDateFormat("dd/MM/yyyy", Locale.ITALY).format(Date(meetingStartTime))
         val timeStr = SimpleDateFormat("HH:mm", Locale.ITALY).format(Date(meetingStartTime))
@@ -99,7 +109,7 @@ $rawTranscript
         """.trimIndent()
 
         val messages = listOf(
-            ChatMessage(role = "system", content = SYSTEM_PROMPT),
+            ChatMessage(role = "system", content = buildSystemPrompt(categorySystemPrompt)),
             ChatMessage(role = "user", content = userMessage)
         )
         val result = openRouterClient.sendChatRequest(apiKey = apiKey, model = model, messages = messages)

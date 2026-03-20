@@ -13,8 +13,10 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
@@ -49,6 +51,7 @@ import androidx.compose.ui.window.Dialog
 import com.transcriber.app.data.ActionItem
 import com.transcriber.app.data.MeetingStatus
 import com.transcriber.app.data.OutlineItem
+import com.transcriber.app.data.PromptCategoryEntity
 import com.transcriber.app.ui.theme.*
 import com.transcriber.app.util.Phrase
 import com.transcriber.app.util.parseTimestampToMs
@@ -59,7 +62,7 @@ import com.transcriber.app.viewmodel.TranscriptUiState
 fun TranscriptScreen(
     uiState: TranscriptUiState,
     onBack: () -> Unit,
-    onStartProcessing: () -> Unit,
+    onStartProcessing: (PromptCategoryEntity) -> Unit,
     onRenameTitle: (String) -> Unit,
     onSetEditingTitle: (Boolean) -> Unit,
     onRenameSpeaker: (original: String, newName: String) -> Unit,
@@ -75,6 +78,7 @@ fun TranscriptScreen(
     var selectedKeyword by remember { mutableStateOf<String?>(null) }
     var showFullTranscript by rememberSaveable { mutableStateOf(false) }
     var showRawTranscript by rememberSaveable { mutableStateOf(false) }
+    var showCategoryPicker by remember { mutableStateOf(false) }
 
     LaunchedEffect(uiState.isEditingTitle) {
         if (uiState.isEditingTitle) {
@@ -132,6 +136,11 @@ fun TranscriptScreen(
                     } else {
                         IconButton(onClick = { onSetEditingTitle(true) }) {
                             Icon(Icons.Default.Edit, "Edit name", tint = TextGray)
+                        }
+                        if (uiState.rawTranscript.isNotBlank() && !uiState.isProcessing) {
+                            IconButton(onClick = { showCategoryPicker = true }) {
+                                Icon(Icons.Default.AutoAwesome, "Rigenera analisi", tint = AccentGreen)
+                            }
                         }
                         if (uiState.finalTranscript.isNotBlank()) {
                             IconButton(onClick = { copyToClipboard(context, uiState.finalTranscript, "Transcript") }) {
@@ -220,7 +229,7 @@ fun TranscriptScreen(
                         // ── Start processing button ───────────────────────────
                         if (uiState.status == MeetingStatus.RECORDED || uiState.status == MeetingStatus.ERROR) {
                             OutlinedButton(
-                                onClick = onStartProcessing,
+                                onClick = { showCategoryPicker = true },
                                 colors = ButtonDefaults.outlinedButtonColors(contentColor = AccentGreen),
                                 border = BorderStroke(1.dp, AccentGreen.copy(alpha = 0.5f)),
                                 shape = RoundedCornerShape(8.dp),
@@ -277,7 +286,17 @@ fun TranscriptScreen(
                     }
                 }
 
-                item { StatusBanner(uiState.status, uiState.processingStep, uiState.errorMessage) }
+                item {
+                    StatusBanner(uiState.status, uiState.processingStep, uiState.errorMessage)
+                    if (uiState.categoryName.isNotBlank()) {
+                        CategoryBadge(
+                            emoji = uiState.categoryEmoji,
+                            name = uiState.categoryName,
+                            colorHex = uiState.categoryColorHex
+                        )
+                        Spacer(Modifier.height(8.dp))
+                    }
+                }
 
                 // ── TRASCRIZIONE LIVE (Spotify-style) ──
                 if (uiState.phrases.isNotEmpty()) {
@@ -563,6 +582,123 @@ fun TranscriptScreen(
             keyword = keyword,
             rawTranscript = uiState.rawTranscript,
             onDismiss = { selectedKeyword = null }
+        )
+    }
+
+    // ── CATEGORY PICKER BOTTOM SHEET ──
+    if (showCategoryPicker) {
+        ModalBottomSheet(
+            onDismissRequest = { showCategoryPicker = false },
+            sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
+            containerColor = DarkSurface
+        ) {
+            CategoryPickerSheet(
+                categories = uiState.categories,
+                onSelect = { category ->
+                    showCategoryPicker = false
+                    onStartProcessing(category)
+                }
+            )
+        }
+    }
+}
+
+// ── Category Picker Sheet ─────────────────────────────────────────────────────
+
+@Composable
+private fun CategoryPickerSheet(
+    categories: List<PromptCategoryEntity>,
+    onSelect: (PromptCategoryEntity) -> Unit
+) {
+    Column(modifier = Modifier.fillMaxWidth()) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 24.dp, vertical = 16.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Icon(Icons.Default.AutoAwesome, null, tint = AccentGreen, modifier = Modifier.size(18.dp))
+            Spacer(Modifier.width(8.dp))
+            Text(
+                "SCEGLI CATEGORIA",
+                style = MaterialTheme.typography.labelMedium,
+                color = AccentGreen,
+                fontWeight = FontWeight.Bold,
+                letterSpacing = 1.5.sp
+            )
+        }
+        HorizontalDivider(color = DarkSurfaceVariant)
+        LazyColumn(
+            contentPadding = PaddingValues(start = 16.dp, top = 12.dp, end = 16.dp, bottom = 32.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            items(categories, key = { it.id }) { category ->
+                val accent = parseHexColor(category.colorHex)
+                Card(
+                    modifier = Modifier.fillMaxWidth().clickable { onSelect(category) },
+                    colors = CardDefaults.cardColors(containerColor = Color.Transparent),
+                    border = BorderStroke(1.dp, DarkSurfaceVariant),
+                    shape = RoundedCornerShape(10.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(40.dp)
+                                .clip(CircleShape)
+                                .background(accent.copy(alpha = 0.15f)),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(category.emoji.ifBlank { "📝" }, fontSize = 18.sp)
+                        }
+                        Spacer(Modifier.width(14.dp))
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                category.name,
+                                color = TextWhite,
+                                fontWeight = FontWeight.SemiBold,
+                                fontSize = 14.sp,
+                                maxLines = 1
+                            )
+                            Text(
+                                category.systemPrompt.replace("\n", " "),
+                                color = TextGray,
+                                style = MaterialTheme.typography.bodySmall,
+                                maxLines = 1,
+                                lineHeight = 16.sp
+                            )
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+// ── Category Badge ────────────────────────────────────────────────────────────
+
+@Composable
+private fun CategoryBadge(emoji: String, name: String, colorHex: String) {
+    val accent = parseHexColor(colorHex)
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(6.dp))
+            .border(1.dp, accent.copy(alpha = 0.35f), RoundedCornerShape(6.dp))
+            .background(accent.copy(alpha = 0.06f))
+            .padding(horizontal = 12.dp, vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(emoji.ifBlank { "📝" }, fontSize = 14.sp)
+        Spacer(Modifier.width(8.dp))
+        Text(
+            name.uppercase(),
+            color = accent,
+            style = MaterialTheme.typography.labelSmall,
+            fontWeight = FontWeight.SemiBold,
+            letterSpacing = 1.sp
         )
     }
 }
