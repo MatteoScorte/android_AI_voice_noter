@@ -12,7 +12,9 @@ import android.os.Binder
 import android.os.Build
 import android.os.IBinder
 import android.support.v4.media.session.MediaSessionCompat
+import android.support.v4.media.session.PlaybackStateCompat
 import androidx.core.app.NotificationCompat
+import com.transcriber.app.MainActivity
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -166,9 +168,11 @@ class PlaybackService : Service() {
         val mp = mediaPlayer ?: return
         if (mp.isPlaying) {
             mp.pause()
+            updateMediaSessionState(isPlaying = false)
             updateNotification(isPlaying = false)
         } else {
             mp.start()
+            updateMediaSessionState(isPlaying = true)
             updateNotification(isPlaying = true)
         }
     }
@@ -198,8 +202,39 @@ class PlaybackService : Service() {
                 override fun onStop()            = handleStop()
                 override fun onSeekTo(pos: Long) = handleSeek(pos)
             })
+            // Android 14 requires an active PlaybackState on mediaPlayback foreground services
+            setPlaybackState(
+                PlaybackStateCompat.Builder()
+                    .setActions(
+                        PlaybackStateCompat.ACTION_PLAY or
+                        PlaybackStateCompat.ACTION_PAUSE or
+                        PlaybackStateCompat.ACTION_STOP or
+                        PlaybackStateCompat.ACTION_SEEK_TO
+                    )
+                    .setState(PlaybackStateCompat.STATE_PAUSED, 0L, 1f)
+                    .build()
+            )
             isActive = true
         }
+    }
+
+    private fun updateMediaSessionState(isPlaying: Boolean) {
+        mediaSession?.setPlaybackState(
+            PlaybackStateCompat.Builder()
+                .setActions(
+                    PlaybackStateCompat.ACTION_PLAY or
+                    PlaybackStateCompat.ACTION_PAUSE or
+                    PlaybackStateCompat.ACTION_STOP or
+                    PlaybackStateCompat.ACTION_SEEK_TO
+                )
+                .setState(
+                    if (isPlaying) PlaybackStateCompat.STATE_PLAYING
+                    else PlaybackStateCompat.STATE_PAUSED,
+                    mediaPlayer?.currentPosition?.toLong() ?: 0L,
+                    1f
+                )
+                .build()
+        )
     }
 
     private fun updateNotification(isPlaying: Boolean) {
@@ -208,35 +243,43 @@ class PlaybackService : Service() {
     }
 
     private fun buildNotification(isPlaying: Boolean): Notification {
-        val playPauseIntent = PendingIntent.getService(
+        val tapIntent = PendingIntent.getActivity(
             this, 0,
+            Intent(this, MainActivity::class.java).apply {
+                flags = Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP
+            },
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+        val playPauseIntent = PendingIntent.getService(
+            this, 1,
             Intent(this, PlaybackService::class.java).apply { action = ACTION_PLAY_PAUSE },
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
         val stopIntent = PendingIntent.getService(
-            this, 1,
+            this, 2,
             Intent(this, PlaybackService::class.java).apply { action = ACTION_STOP },
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
 
         val builder = NotificationCompat.Builder(this, CHANNEL_ID)
             .setSmallIcon(android.R.drawable.ic_media_play)
-            .setContentTitle("Audio Transcriber")
+            .setContentTitle("Voxlog")
             .setContentText(if (isPlaying) "Riproduzione in corso" else "In pausa")
             .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
+            .setContentIntent(tapIntent)   // tap → apre l'app
             .addAction(
                 if (isPlaying) android.R.drawable.ic_media_pause else android.R.drawable.ic_media_play,
                 if (isPlaying) "Pausa" else "Play",
                 playPauseIntent
             )
             .addAction(android.R.drawable.ic_delete, "Stop", stopIntent)
-            .setOngoing(isPlaying)
+            .setOngoing(true)   // sempre persistente: non può essere rimossa con swipe
 
         mediaSession?.let { session ->
             builder.setStyle(
                 androidx.media.app.NotificationCompat.MediaStyle()
                     .setMediaSession(session.sessionToken)
-                    .setShowActionsInCompactView(0)
+                    .setShowActionsInCompactView(0, 1)  // mostra Play/Pausa E Stop in vista compatta
             )
         }
 

@@ -36,8 +36,7 @@ fun SettingsScreen(
     onUpdateSupabaseKey: (String) -> Unit,
     onUpdateSyncEnabled: (Boolean) -> Unit,
     onSave: () -> Unit,
-    onSyncNow: () -> Unit,
-    onPromptCategoriesClick: () -> Unit
+    onSyncNow: () -> Unit
 ) {
     var modelExpanded by remember { mutableStateOf(false) }
 
@@ -199,31 +198,6 @@ fun SettingsScreen(
                     Text(uiState.syncStatus, color = AccentGreen, style = MaterialTheme.typography.bodySmall)
                 }
             }
-            Spacer(Modifier.height(32.dp))
-
-            // ── PROMPT CATEGORIES ──
-            SectionTitle("PROMPT CATEGORIES", Icons.Default.Tune)
-            Spacer(Modifier.height(16.dp))
-            Card(
-                modifier = Modifier.fillMaxWidth().clickable(onClick = onPromptCategoriesClick),
-                colors = CardDefaults.cardColors(containerColor = Color.Transparent),
-                border = BorderStroke(1.dp, DarkSurfaceVariant),
-                shape = RoundedCornerShape(8.dp)
-            ) {
-                Row(
-                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 14.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Icon(Icons.Default.Category, null, tint = AccentGreen, modifier = Modifier.size(20.dp))
-                    Spacer(Modifier.width(14.dp))
-                    Column(Modifier.weight(1f)) {
-                        Text("Gestisci Categorie", color = TextWhite, fontWeight = FontWeight.Medium)
-                        Text("Crea, modifica e personalizza le categorie di analisi", color = TextGray, style = MaterialTheme.typography.bodySmall)
-                    }
-                    Icon(Icons.Default.ChevronRight, null, tint = TextGray.copy(alpha = 0.5f), modifier = Modifier.size(20.dp))
-                }
-            }
-
             Spacer(Modifier.height(48.dp))
 
             // ── SAVE BUTTON ──

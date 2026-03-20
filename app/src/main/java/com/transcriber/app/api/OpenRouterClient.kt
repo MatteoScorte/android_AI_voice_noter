@@ -41,7 +41,7 @@ class OpenRouterClient {
             .addHeader("Authorization", "Bearer $apiKey")
             .addHeader("Content-Type", "application/json")
             .addHeader("HTTP-Referer", "https://audio-transcriber.app")
-            .addHeader("X-Title", "Audio Transcriber")
+            .addHeader("X-Title", "Voxlog")
             .post(body)
             .build()
 

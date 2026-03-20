@@ -10,9 +10,12 @@ import android.os.Build
 import android.os.SystemClock
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.transcriber.app.data.FolderRepository
+import com.transcriber.app.data.FOLDER_ID_NONE
 import com.transcriber.app.data.InboxItem
 import com.transcriber.app.data.InboxRepository
 import com.transcriber.app.data.Meeting
+import com.transcriber.app.data.MeetingFolder
 import com.transcriber.app.data.MeetingRepository
 import com.transcriber.app.data.MeetingStatus
 import com.transcriber.app.data.SettingsRepository
@@ -39,13 +42,17 @@ data class HomeUiState(
     val currentMeetingId: String? = null,
     val recordingDurationMs: Long = 0,
     val meetings: List<Meeting> = emptyList(),
-    val inboxItems: List<InboxItem> = emptyList()
+    val inboxItems: List<InboxItem> = emptyList(),
+    val folders: List<MeetingFolder> = emptyList(),
+    // null = tutte, FOLDER_ID_NONE = senza cartella, altrimenti id cartella
+    val selectedFolderId: String? = null
 )
 
 class HomeViewModel(application: Application) : AndroidViewModel(application) {
 
     val meetingRepository = MeetingRepository(application)
     val inboxRepository = InboxRepository(application)
+    private val folderRepository = FolderRepository(application)
     private val settingsRepository = SettingsRepository(application)
     private val _uiState = MutableStateFlow(HomeUiState())
     val uiState: StateFlow<HomeUiState> = _uiState.asStateFlow()
@@ -114,6 +121,9 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch {
             inboxRepository.items.collect { _uiState.value = _uiState.value.copy(inboxItems = it) }
         }
+        viewModelScope.launch {
+            folderRepository.folders.collect { _uiState.value = _uiState.value.copy(folders = it) }
+        }
         // Auto-pull from Supabase on launch
         viewModelScope.launch {
             val syncEnabled = settingsRepository.supabaseSyncEnabled.first()
@@ -128,7 +138,7 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    fun startRecording(customTitle: String, language: String) {
+    fun startRecording(customTitle: String, language: String, folderId: String? = null) {
         val ctx = getApplication<Application>()
         val meetingId = UUID.randomUUID().toString()
         val fileName = "meeting_${SimpleDateFormat("yyyy-MM-dd_HH-mm-ss", Locale.getDefault()).format(Date())}.m4a"
@@ -141,7 +151,8 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
                 createdAt = System.currentTimeMillis(),
                 language = language,
                 audioFilePath = filePath,
-                status = MeetingStatus.RECORDING
+                status = MeetingStatus.RECORDING,
+                folderId = folderId
             ))
         }
 
@@ -196,7 +207,7 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
      * the TranscriptScreen. The local audio file is transferred to the Meeting;
      * the InboxItem record is removed without deleting the file.
      */
-    fun processInboxItem(item: InboxItem, title: String, language: String) {
+    fun processInboxItem(item: InboxItem, title: String, language: String, folderId: String? = null) {
         viewModelScope.launch {
             val meetingId = UUID.randomUUID().toString()
             meetingRepository.addMeeting(
@@ -206,7 +217,8 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
                     createdAt = item.addedAt,
                     language = language,
                     audioFilePath = item.localPath,
-                    status = MeetingStatus.RECORDED
+                    status = MeetingStatus.RECORDED,
+                    folderId = folderId
                 )
             )
             inboxRepository.removeItem(item.id, deleteFile = false)
@@ -228,6 +240,49 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
                 if (url.isNotBlank() && key.isNotBlank()) {
                     SupabaseClient(url, key).deleteMeeting(meetingId)
                 }
+            }
+        }
+    }
+
+    // ── Folder management ─────────────────────────────────────────────────────
+
+    fun setSelectedFolder(folderId: String?) {
+        _uiState.value = _uiState.value.copy(selectedFolderId = folderId)
+    }
+
+    fun createFolder(name: String, colorHex: String) {
+        viewModelScope.launch {
+            folderRepository.addFolder(MeetingFolder(name = name.trim(), colorHex = colorHex))
+        }
+    }
+
+    fun updateFolder(id: String, newName: String, colorHex: String) {
+        val trimmed = newName.trim().ifBlank { return }
+        viewModelScope.launch {
+            folderRepository.folders.value.find { it.id == id }?.let {
+                folderRepository.updateFolder(it.copy(name = trimmed, colorHex = colorHex))
+            }
+        }
+    }
+
+    fun deleteFolder(folderId: String) {
+        viewModelScope.launch {
+            // Unassign all meetings from this folder before deleting it
+            meetingRepository.meetings.value
+                .filter { it.folderId == folderId }
+                .forEach { meetingRepository.updateMeeting(it.copy(folderId = null)) }
+            folderRepository.deleteFolder(folderId)
+            // If the deleted folder was selected, reset filter to "all"
+            if (_uiState.value.selectedFolderId == folderId) {
+                _uiState.value = _uiState.value.copy(selectedFolderId = null)
+            }
+        }
+    }
+
+    fun assignFolderToMeeting(meetingId: String, folderId: String?) {
+        viewModelScope.launch {
+            meetingRepository.getMeeting(meetingId)?.let {
+                meetingRepository.updateMeeting(it.copy(folderId = folderId))
             }
         }
     }

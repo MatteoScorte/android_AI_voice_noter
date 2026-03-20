@@ -78,13 +78,6 @@ fun CategoryEditorScreen(
                         IconButton(onClick = { showDeleteDialog = true }) {
                             Icon(Icons.Default.DeleteOutline, "Elimina", tint = ErrorRed)
                         }
-                    } else if (state.isDefault) {
-                        Icon(
-                            Icons.Default.Lock,
-                            contentDescription = "Default — non eliminabile",
-                            tint = TextGray.copy(alpha = 0.5f),
-                            modifier = Modifier.padding(end = 12.dp).size(20.dp)
-                        )
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = DarkBackground)

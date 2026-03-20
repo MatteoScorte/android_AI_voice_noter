@@ -47,6 +47,8 @@ data class Meeting(
     @SerializedName("wordTimestamps") val wordTimestamps: List<WordTimestamp>? = null,
     // Whether this meeting has been explicitly shared to Supabase cloud storage
     @SerializedName("isShared") val isShared: Boolean = false,
+    // Organisational folder (null = nessuna cartella)
+    @SerializedName("folderId") val folderId: String? = null,
     // Category used for LLM analysis (0 = none / legacy meeting)
     // Nullable for backward-compatibility with meetings recorded before this feature
     @SerializedName("categoryId") val categoryId: Int = 0,

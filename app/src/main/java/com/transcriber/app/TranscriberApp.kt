@@ -40,16 +40,22 @@ fun TranscriberApp() {
 
                 HomeScreen(
                     uiState = uiState,
-                    onStartRecording = { title, language -> viewModel.startRecording(title, language) },
+                    onStartRecording = { title, language, folderId -> viewModel.startRecording(title, language, folderId) },
                     onPauseRecording = { viewModel.pauseRecording() },
                     onResumeRecording = { viewModel.resumeRecording() },
                     onStopRecording = { viewModel.stopRecording() },
                     onMeetingClick = { navController.navigate("transcript/$it") },
                     onDeleteMeeting = { viewModel.deleteMeeting(it) },
                     onSettingsClick = { navController.navigate("settings") },
+                    onCategoriesClick = { navController.navigate("category_manager") },
                     onImportFile = { uri -> viewModel.importFromUri(uri) },
                     onProcessInboxItem = { item, title, lang -> viewModel.processInboxItem(item, title, lang) },
-                    onDeleteInboxItem = { id -> viewModel.deleteInboxItem(id) }
+                    onDeleteInboxItem = { id -> viewModel.deleteInboxItem(id) },
+                    onSelectFolder = { viewModel.setSelectedFolder(it) },
+                    onCreateFolder = { name, color -> viewModel.createFolder(name, color) },
+                    onUpdateFolder = { id, name, color -> viewModel.updateFolder(id, name, color) },
+                    onDeleteFolder = { viewModel.deleteFolder(it) },
+                    onAssignFolder = { meetingId, folderId -> viewModel.assignFolderToMeeting(meetingId, folderId) }
                 )
             }
 
@@ -92,8 +98,7 @@ fun TranscriberApp() {
                     onUpdateSupabaseKey = { viewModel.updateSupabaseAnonKey(it) },
                     onUpdateSyncEnabled = { viewModel.updateSupabaseSyncEnabled(it) },
                     onSave = { viewModel.saveSettings() },
-                    onSyncNow = { viewModel.syncNow() },
-                    onPromptCategoriesClick = { navController.navigate("category_manager") }
+                    onSyncNow = { viewModel.syncNow() }
                 )
             }
 

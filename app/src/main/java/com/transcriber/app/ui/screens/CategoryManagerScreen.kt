@@ -150,15 +150,6 @@ private fun CategoryRow(
                         overflow = TextOverflow.Ellipsis,
                         modifier = Modifier.weight(1f, fill = false)
                     )
-                    if (category.isDefault) {
-                        Spacer(Modifier.width(6.dp))
-                        Icon(
-                            Icons.Default.Lock,
-                            contentDescription = "Default",
-                            tint = TextGray.copy(alpha = 0.5f),
-                            modifier = Modifier.size(13.dp)
-                        )
-                    }
                 }
                 Spacer(Modifier.height(4.dp))
                 Text(
