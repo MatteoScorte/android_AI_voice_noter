@@ -724,16 +724,13 @@ private fun SpotifyLyricsSection(
 ) {
     val listState = rememberLazyListState()
 
-    // Smoothly scroll to keep the active phrase visible (~1 item above the top edge)
-    // whenever the active index changes.  The effect is skipped when activePhraseIndex
-    // is -1 (idle or no phrase matched).
+    // Smoothly scroll to keep the active phrase visible with one phrase of context above.
+    // Scrolls to (activePhraseIndex - 1) so the preceding line stays visible.
+    // Skipped when activePhraseIndex is -1 (idle) or out of the current list bounds.
     LaunchedEffect(activePhraseIndex) {
-        if (activePhraseIndex >= 0) {
-            // Scroll so the active phrase is the second visible row (one item above top edge).
-            listState.animateScrollToItem(
-                index       = activePhraseIndex.coerceAtLeast(0),
-                scrollOffset = -40   // px offset: keep a little context above the active line
-            )
+        val targetIndex = (activePhraseIndex - 1).coerceAtLeast(0)
+        if (activePhraseIndex >= 0 && activePhraseIndex < phrases.size) {
+            listState.animateScrollToItem(index = targetIndex)
         }
     }
 

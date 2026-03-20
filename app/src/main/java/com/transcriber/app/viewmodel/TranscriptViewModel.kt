@@ -199,6 +199,9 @@ class TranscriptViewModel(application: Application) : AndroidViewModel(applicati
             categoryName = m.categoryName.orEmpty(),
             categoryEmoji = m.categoryEmoji.orEmpty(),
             categoryColorHex = m.categoryColorHex.orEmpty(),
+            // Preserve the already-loaded categories list so it isn't wiped by this reset.
+            // The init{} collect only re-emits on Room changes, not on every loadMeeting call.
+            categories = _uiState.value.categories,
             // ── Bug 2 fix: restore processing indicator if the background job is still alive ──
             isProcessing   = processingNow,
             processingStep = if (isReload && processingNow) prev.processingStep else "",

@@ -15,7 +15,12 @@
       "Bash(for f:*)",
       "Bash(do echo:*)",
       "Read(//c/Users/matte/Desktop/vibe_projects/android_audio_transcriber/**)",
-      "Bash(done)"
+      "Bash(done)",
+      "Bash(./gradlew testDebugUnitTest --tests \"com.transcriber.app.GroupIntoPhrasesTest\")",
+      "Bash(\"C:\\\\Program Files\\\\Android\\\\Android Studio\\\\jbr\\\\bin\\\\java.exe\" -version)",
+      "Bash(JAVA_HOME=\"C:\\\\Program Files\\\\Android\\\\Android Studio\\\\jbr\" ./gradlew testDebugUnitTest --tests \"com.transcriber.app.GroupIntoPhrasesTest\")",
+      "Bash(JAVA_HOME=\"C:\\\\Program Files\\\\Android\\\\Android Studio\\\\jbr\" ./gradlew testDebugUnitTest)",
+      "Bash(JAVA_HOME=\"C:\\\\Program Files\\\\Android\\\\Android Studio\\\\jbr\" ./gradlew testDebugUnitTest --rerun-tasks)"
     ]
   }
 }

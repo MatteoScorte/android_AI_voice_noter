@@ -150,8 +150,14 @@ class PlaybackService : Service() {
                     _events.emit(PlaybackEvent.DurationAvailable(mp.duration.toLong()))
                     _events.emit(PlaybackEvent.Ready)
                 }
-            } catch (_: Exception) {
+            } catch (e: Exception) {
+                android.util.Log.e("PlaybackService", "Failed to prepare MediaPlayer: ${e.message}")
                 mp.release()
+                // Notify ViewModel so it doesn't stay stuck on isPlayerReady=false forever
+                withContext(Dispatchers.Main) {
+                    _events.emit(PlaybackEvent.DurationAvailable(0L))
+                    _events.emit(PlaybackEvent.Ready)
+                }
             }
         }
     }
@@ -176,7 +182,9 @@ class PlaybackService : Service() {
     }
 
     private fun handleSeek(ms: Long) {
-        mediaPlayer?.seekTo(ms.toInt())
+        // seekTo(int) is deprecated since API 26; use seekTo(long, mode) instead.
+        // SEEK_CLOSEST gives frame-accurate seeks, better for short clips.
+        mediaPlayer?.seekTo(ms, MediaPlayer.SEEK_CLOSEST)
     }
 
     // ── MediaSession & notification ───────────────────────────────────────────
