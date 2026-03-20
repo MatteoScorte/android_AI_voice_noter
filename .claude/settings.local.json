@@ -1,7 +1,21 @@
 {
   "permissions": {
     "allow": [
-      "Bash(find /c/Users/matte/Desktop/vibe_projects/android_audio_transcriber/app/src -type f \\\\\\(-name *.kt -o -name *.xml \\\\\\))"
+      "Bash(find /c/Users/matte/Desktop/vibe_projects/android_audio_transcriber/app/src -type f \\\\\\(-name *.kt -o -name *.xml \\\\\\))",
+      "Bash(ls:*)",
+      "Bash(./gradlew compileDebugKotlin)",
+      "Read(//c/Users/matte/Desktop/vibe_projects/android_audio_transcriber/$LOCALAPPDATA/Android/Sdk/**)",
+      "Bash(where java:*)",
+      "Read(//c/Program Files/Android/Android Studio/jbr/bin/**)",
+      "Read(//c/Program Files/Android/Android Studio/jre/bin/**)",
+      "Bash(JAVA_HOME=\"/c/Program Files/Android/Android Studio/jbr\" ./gradlew compileDebugKotlin)",
+      "Bash(JAVA_HOME=\"/c/Program Files/Android/Android Studio/jbr\" ./gradlew test)",
+      "Bash(JAVA_HOME=\"/c/Program Files/Android/Android Studio/jbr\" ./gradlew testDebugUnitTest --info)",
+      "Bash(find C:UsersmatteDesktopvibe_projectsandroid_audio_transcriber -name TEST-*.xml -path */test-results/*)",
+      "Bash(for f:*)",
+      "Bash(do echo:*)",
+      "Read(//c/Users/matte/Desktop/vibe_projects/android_audio_transcriber/**)",
+      "Bash(done)"
     ]
   }
 }

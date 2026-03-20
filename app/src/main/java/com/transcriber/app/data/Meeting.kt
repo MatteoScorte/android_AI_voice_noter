@@ -17,6 +17,13 @@ data class ActionItem(
     @SerializedName("deadline") val deadline: String = ""
 )
 
+/** Word-level timestamp from Deepgram — stored compact (short keys) to keep the JSON lean. */
+data class WordTimestamp(
+    @SerializedName("w") val word: String,
+    @SerializedName("s") val start: Double,  // seconds from audio start
+    @SerializedName("e") val end: Double     // seconds from audio start
+)
+
 data class Meeting(
     @SerializedName("id") val id: String,
     @SerializedName("title") val title: String,
@@ -35,5 +42,9 @@ data class Meeting(
     @SerializedName("overview") val overview: String? = null,
     @SerializedName("outline") val outline: List<OutlineItem>? = null,
     @SerializedName("bulletNotes") val bulletNotes: List<String>? = null,
-    @SerializedName("actionItems") val actionItems: List<ActionItem>? = null
+    @SerializedName("actionItems") val actionItems: List<ActionItem>? = null,
+    // Nullable for backward-compatibility with meetings recorded before this feature
+    @SerializedName("wordTimestamps") val wordTimestamps: List<WordTimestamp>? = null,
+    // Whether this meeting has been explicitly shared to Supabase cloud storage
+    @SerializedName("isShared") val isShared: Boolean = false
 )

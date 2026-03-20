@@ -27,7 +27,16 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         requestPermissions()
-        handleIncomingIntent(intent)
+
+        // Only process the launch intent on FIRST creation.
+        // savedInstanceState != null means the Activity is being re-created due to a
+        // configuration change (rotation, permission dialog, system kill-restore, etc.)
+        // In those cases this.intent still holds the original WhatsApp ACTION_SEND intent,
+        // so calling handleIncomingIntent here would import the same file a second (or third)
+        // time.  onNewIntent() already handles shares that arrive while the app is running.
+        if (savedInstanceState == null) {
+            handleIncomingIntent(intent)
+        }
 
         setContent {
             Surface(
@@ -48,6 +57,10 @@ class MainActivity : ComponentActivity() {
     /**
      * If the launching intent is an ACTION_SEND with an audio URI, copy the file
      * into the app's inbox so it appears in the Audio Inbox tab.
+     *
+     * After processing we clear the action on the stored intent via setIntent() so
+     * that any unexpected re-delivery path (e.g. onNewIntent called twice by some
+     * launchers, or future code that calls handleIncomingIntent again) is idempotent.
      */
     private fun handleIncomingIntent(intent: Intent?) {
         if (intent?.action != Intent.ACTION_SEND) return
@@ -60,6 +73,10 @@ class MainActivity : ComponentActivity() {
         }
 
         uri?.let { incomingUri ->
+            // Consume the intent so it cannot be re-processed by a subsequent
+            // onCreate/onNewIntent call for the same share action.
+            setIntent(Intent())
+
             lifecycleScope.launch {
                 InboxRepository(this@MainActivity).importFromUri(this@MainActivity, incomingUri)
             }

@@ -69,7 +69,10 @@ fun TranscriberApp() {
                     onStartProcessing = { viewModel.startFullProcessing(meetingId) },
                     onRenameTitle = { viewModel.renameTitle(it) },
                     onSetEditingTitle = { viewModel.setEditingTitle(it) },
-                    onRenameSpeaker = { original, newName -> viewModel.renameSpeaker(original, newName) }
+                    onRenameSpeaker = { original, newName -> viewModel.renameSpeaker(original, newName) },
+                    onPlayPause = { viewModel.playPause() },
+                    onSeekTo = { ms -> viewModel.seekTo(ms) },
+                    onShareToCloud = { viewModel.shareMeeting() }
                 )
             }
 

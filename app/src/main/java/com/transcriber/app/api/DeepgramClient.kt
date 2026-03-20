@@ -1,6 +1,7 @@
 package com.transcriber.app.api
 
 import com.google.gson.Gson
+import com.transcriber.app.data.WordTimestamp
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import okhttp3.MediaType.Companion.toMediaType
@@ -11,7 +12,7 @@ import java.io.File
 import java.io.IOException
 import java.util.concurrent.TimeUnit
 
-// Deepgram Response Data Classes
+// ── Deepgram response data classes ──────────────────────────────────────────
 data class DeepgramResponse(val results: DgResults?)
 data class DgResults(val channels: List<DgChannel>?)
 data class DgChannel(val alternatives: List<DgAlternative>?)
@@ -29,7 +30,21 @@ data class DgParagraph(
     val end: Double?
 )
 data class DgSentence(val text: String?, val start: Double?, val end: Double?)
-data class DgWord(val word: String, val punctuated_word: String?, val speaker: Int?)
+
+/** `start` and `end` are word-level timestamps in seconds — populated by `words=true`. */
+data class DgWord(
+    val word: String,
+    val punctuated_word: String?,
+    val speaker: Int?,
+    val start: Double?,
+    val end: Double?
+)
+
+/** Result returned by [DeepgramClient.transcribeAndDiarize]. */
+data class DeepgramResult(
+    val transcript: String,
+    val wordTimestamps: List<WordTimestamp>
+)
 
 class DeepgramClient {
 
@@ -64,18 +79,18 @@ class DeepgramClient {
         apiKey: String,
         audioFile: File,
         language: String = "it"
-    ): Result<String> = withContext(Dispatchers.IO) {
+    ): Result<DeepgramResult> = withContext(Dispatchers.IO) {
         try {
             val mimeType = mimeTypeFor(audioFile)
             val requestBody = audioFile.asRequestBody(mimeType.toMediaType())
 
-            // Build request URL with query params
             val langParam = if (language == "auto") "detect_language=true" else "language=$language"
             val url = "https://api.deepgram.com/v1/listen" +
                     "?model=nova-2" +
                     "&$langParam" +
                     "&diarize=true" +
-                    "&smart_format=true"
+                    "&smart_format=true" +
+                    "&words=true"   // enables word-level start/end timestamps
 
             val request = Request.Builder()
                 .url(url)
@@ -92,23 +107,33 @@ class DeepgramClient {
                 val dgResponse = gson.fromJson(body, DeepgramResponse::class.java)
                 val alternative = dgResponse.results?.channels?.firstOrNull()?.alternatives?.firstOrNull()
 
-                // 1. Try to use paragraphs (recommended for smart_format and diarize)
+                // Extract word-level timestamps — works regardless of which transcript path is used
+                val wordTimestamps: List<WordTimestamp> = alternative?.words?.mapNotNull { w ->
+                    val s = w.start ?: return@mapNotNull null
+                    val e = w.end   ?: return@mapNotNull null
+                    WordTimestamp(word = w.punctuated_word ?: w.word, start = s, end = e)
+                } ?: emptyList()
+
+                // 1. Try paragraphs (recommended for smart_format + diarize)
                 val paragraphs = alternative?.paragraphs?.paragraphs
                 if (!paragraphs.isNullOrEmpty()) {
-                    val compiledTranscript = compileParagraphs(paragraphs)
-                    return@withContext Result.success(compiledTranscript)
+                    return@withContext Result.success(
+                        DeepgramResult(compileParagraphs(paragraphs), wordTimestamps)
+                    )
                 }
 
-                // 2. Fallback to words
+                // 2. Fallback: words with diarization
                 val words = alternative?.words
                 if (!words.isNullOrEmpty()) {
-                    val compiledTranscript = compileDiarizedTranscript(words)
-                    return@withContext Result.success(compiledTranscript)
+                    return@withContext Result.success(
+                        DeepgramResult(compileDiarizedTranscript(words), wordTimestamps)
+                    )
                 }
 
-                // 3. Fallback to plain transcript
+                // 3. Fallback: plain transcript
                 val plainText = alternative?.transcript ?: ""
-                Result.success(plainText)
+                Result.success(DeepgramResult(plainText, wordTimestamps))
+
             } else {
                 Result.failure(IOException("Deepgram API error ${response.code}: ${response.body?.string()}"))
             }
@@ -143,11 +168,9 @@ class DeepgramClient {
         for (w in words) {
             val wordSpeaker = w.speaker ?: 0
             if (wordSpeaker != currentSpeaker) {
-                // Speaker changed, start a new paragraph
                 currentSpeaker = wordSpeaker
                 sb.append("\n\nSpeaker $currentSpeaker:\n")
             }
-            // Use punctuated_word if available, fallback to word
             val textToAppend = w.punctuated_word ?: w.word
             sb.append(textToAppend).append(" ")
         }

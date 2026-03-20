@@ -500,6 +500,15 @@ private fun MeetingCard(meeting: Meeting, onClick: () -> Unit, onDelete: () -> U
                     }
                 }
             }
+            if (meeting.isShared) {
+                Icon(
+                    imageVector = Icons.Default.CloudDone,
+                    contentDescription = "Condiviso",
+                    tint = AccentTeal,
+                    modifier = Modifier.size(18.dp)
+                )
+                Spacer(Modifier.width(4.dp))
+            }
             IconButton(onClick = onDelete, modifier = Modifier.size(36.dp)) {
                 Icon(Icons.Default.DeleteOutline, "Delete", tint = TextGray, modifier = Modifier.size(20.dp))
             }
