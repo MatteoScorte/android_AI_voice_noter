@@ -9,6 +9,10 @@ Trasforma i tuoi audio, note vocali e lezioni universitarie in verbali, riassunt
 [![Scarica l'App](https://img.shields.io/badge/📥_SCARICA_L'APP_QUI_(APK)-Verde_Smeraldo?style=for-the-badge&color=00D28A)](https://github.com/MatteoScorte/android_AI_voice_noter/raw/main/AI_Voice_Noter_v1.0.apk)
 [![Aggiorna l'App](https://img.shields.io/badge/🔄_AGGIORNA_L'APP_(Se_già_installata)-Blu_Oceano?style=for-the-badge&color=007BFF)](https://github.com/MatteoScorte/android_AI_voice_noter/raw/main/AI_Voice_Noter_v1.0.apk)
 
+<br>
+
+**📅 Ultimo Aggiornamento:** 24 Marzo 2026 *(v1.0.2)*
+
 *Clicca uno dei pulsanti qui sopra per scaricare la primissima volta o per aggiornare l'applicazione!*
 
 </div>
