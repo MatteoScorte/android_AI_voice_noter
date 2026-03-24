@@ -6,8 +6,8 @@ Trasforma i tuoi audio, note vocali e lezioni universitarie in verbali, riassunt
 
 <br>
 
-[![Scarica l'App](https://img.shields.io/badge/📥_SCARICA_L'APP_QUI_(APK)-Verde_Smeraldo?style=for-the-badge&color=00D28A)](https://github.com/MatteoScorte/android_AI_voice_noter/raw/main/AI_Voice_Noter_v1.0.apk)
-[![Aggiorna l'App](https://img.shields.io/badge/🔄_AGGIORNA_L'APP_(Se_già_installata)-Blu_Oceano?style=for-the-badge&color=007BFF)](https://github.com/MatteoScorte/android_AI_voice_noter/raw/main/AI_Voice_Noter_v1.0.apk)
+[![Scarica l'App](https://img.shields.io/badge/📥_SCARICA_L'APP_QUI_(APK)-Verde_Smeraldo?style=for-the-badge&color=00D28A)](https://github.com/MatteoScorte/android_AI_voice_noter/releases/latest/download/AI_Voice_Noter_v1.0.apk)
+[![Aggiorna l'App](https://img.shields.io/badge/🔄_AGGIORNA_L'APP_(Se_già_installata)-Blu_Oceano?style=for-the-badge&color=007BFF)](https://github.com/MatteoScorte/android_AI_voice_noter/releases/latest/download/AI_Voice_Noter_v1.0.apk)
 
 <br>
 
@@ -32,7 +32,7 @@ Su Android, "aggiornare" un'app scaricata da GitHub è identico a scaricarla per
 ---
 
 ### Passo 1: Installare l'app per la prima volta
-1. Clicca sul grande pulsante verde **"📥 SCARICA L'APP QUI (APK)"** che si trova in cima a questa pagina, oppure clicca [qui](https://github.com/MatteoScorte/android_AI_voice_noter/raw/main/AI_Voice_Noter_v1.0.apk).
+1. Clicca sul grande pulsante verde **"📥 SCARICA L'APP QUI (APK)"** che si trova in cima a questa pagina, oppure clicca [qui](https://github.com/MatteoScorte/android_AI_voice_noter/releases/latest/download/AI_Voice_Noter_v1.0.apk).
 2. Nella nuova pagina che si apre, scorri verso il basso fino alla sezione intitolata **"Assets"**.
 3. Clicca sul file che finisce per **`.apk`** (potrebbe chiamarsi `app-release.apk` o simile).
 4. Il tuo telefono inizierà automaticamente a scaricare il file.
