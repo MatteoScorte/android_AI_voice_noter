@@ -417,7 +417,13 @@ class TranscriptViewModel(application: Application) : AndroidViewModel(applicati
                     return@launch
                 }
                 val sharedMeeting = meeting.copy(isShared = true)
-                SupabaseClient(url, key).upsertMeeting(sharedMeeting, meetingRepository.deviceId)
+                val client = SupabaseClient(url, key)
+                client.upsertMeeting(sharedMeeting, meetingRepository.deviceId)
+                // Upload audio file if it exists locally
+                val audioFile = java.io.File(meeting.audioFilePath)
+                if (meeting.audioFilePath.isNotEmpty() && audioFile.exists()) {
+                    client.uploadAudioFile(meeting.id, audioFile)
+                }
                 meetingRepository.updateMeeting(sharedMeeting)
                 _uiState.value = _uiState.value.copy(isSharing = false, isShared = true)
             } catch (e: Exception) {

@@ -96,11 +96,10 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
             val client = SupabaseClient(url, key)
             val deviceId = meetingRepo.deviceId
 
-            // 1. Push all local COMPLETED meetings to cloud
-            val localCompleted = meetingRepo.meetings.value
-                .filter { it.status == com.transcriber.app.data.MeetingStatus.COMPLETED }
+            // 1. Push only meetings explicitly shared by the user (isShared = true)
+            val localShared = meetingRepo.meetings.value.filter { it.isShared }
             var pushErrors = 0
-            localCompleted.forEach { meeting ->
+            localShared.forEach { meeting ->
                 val r = client.upsertMeeting(meeting, deviceId)
                 if (r.isFailure) pushErrors++
             }
@@ -109,11 +108,29 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
             _uiState.value = _uiState.value.copy(syncStatus = "Download riunioni cloud...")
             val pullResult = client.fetchAllMeetings()
             if (pullResult.isSuccess) {
-                meetingRepo.mergeRemoteMeetings(pullResult.getOrThrow())
-                val total = pullResult.getOrThrow().size
+                val remoteList = pullResult.getOrThrow()
+                meetingRepo.mergeRemoteMeetings(remoteList)
+
+                // 3. Download audio files for remote meetings that have no local audio
+                _uiState.value = _uiState.value.copy(syncStatus = "Download audio...")
+                val localMeetings = meetingRepo.meetings.value
+                var audioDownloaded = 0
+                for (remote in remoteList) {
+                    val local = localMeetings.find { it.id == remote.id } ?: continue
+                    if (local.audioFilePath.isNotEmpty() && java.io.File(local.audioFilePath).exists()) continue
+                    val destFile = java.io.File(meetingRepo.getAudioDir(), "${remote.id}.m4a")
+                    val dlResult = client.tryDownloadAudio(remote.id, destFile)
+                    if (dlResult.getOrDefault(false)) {
+                        meetingRepo.updateMeeting(local.copy(audioFilePath = destFile.absolutePath))
+                        audioDownloaded++
+                    }
+                }
+
+                val total = remoteList.size
                 val pushInfo = if (pushErrors > 0) " (⚠️ $pushErrors errori upload)" else ""
+                val audioInfo = if (audioDownloaded > 0) ", $audioDownloaded audio scaricati" else ""
                 _uiState.value = _uiState.value.copy(
-                    syncStatus = "✓ Sincronizzato — $total riunioni nel cloud, ${localCompleted.size} caricate$pushInfo"
+                    syncStatus = "✓ Sincronizzato — $total riunioni nel cloud, ${localShared.size} caricate$pushInfo$audioInfo"
                 )
             } else {
                 val err = pullResult.exceptionOrNull()?.message ?: pullResult.exceptionOrNull()?.toString() ?: "Errore sconosciuto"

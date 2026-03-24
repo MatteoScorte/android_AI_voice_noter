@@ -131,8 +131,22 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
                 val url = settingsRepository.supabaseUrl.first()
                 val key = settingsRepository.supabaseAnonKey.first()
                 if (url.isNotBlank() && key.isNotBlank()) {
-                    val result = SupabaseClient(url, key).fetchAllMeetings()
-                    result.getOrNull()?.let { meetingRepository.mergeRemoteMeetings(it) }
+                    val client = SupabaseClient(url, key)
+                    val result = client.fetchAllMeetings()
+                    result.getOrNull()?.let { remoteList ->
+                        meetingRepository.mergeRemoteMeetings(remoteList)
+                        // Download audio for remote meetings that have no local audio file
+                        val localMeetings = meetingRepository.meetings.value
+                        for (remote in remoteList) {
+                            val local = localMeetings.find { it.id == remote.id } ?: continue
+                            if (local.audioFilePath.isNotEmpty() && java.io.File(local.audioFilePath).exists()) continue
+                            val destFile = java.io.File(meetingRepository.getAudioDir(), "${remote.id}.m4a")
+                            val dlResult = client.tryDownloadAudio(remote.id, destFile)
+                            if (dlResult.getOrDefault(false)) {
+                                meetingRepository.updateMeeting(local.copy(audioFilePath = destFile.absolutePath))
+                            }
+                        }
+                    }
                 }
             }
         }

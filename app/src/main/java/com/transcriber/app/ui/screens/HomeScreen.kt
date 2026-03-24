@@ -717,7 +717,10 @@ private fun MeetingCard(
         shape = RoundedCornerShape(12.dp)
     ) {
         Row(Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
-            val sColor = statusColor(meeting.status)
+            val sColor = if (meeting.status == MeetingStatus.COMPLETED && folder != null)
+                Color(android.graphics.Color.parseColor(folder.colorHex))
+            else
+                statusColor(meeting.status)
             Icon(
                 imageVector = statusIcon(meeting.status),
                 contentDescription = null,

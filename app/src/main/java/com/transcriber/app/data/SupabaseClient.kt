@@ -8,7 +8,9 @@ import kotlinx.coroutines.withContext
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.Request
+import okhttp3.RequestBody.Companion.asRequestBody
 import okhttp3.RequestBody.Companion.toRequestBody
+import java.io.File
 import java.util.concurrent.TimeUnit
 
 /**
@@ -27,6 +29,13 @@ class SupabaseClient(
         .build()
 
     private val JSON = "application/json".toMediaType()
+
+    // Separate client with longer timeouts for large audio file transfers
+    private val fileClient = OkHttpClient.Builder()
+        .connectTimeout(30, TimeUnit.SECONDS)
+        .readTimeout(120, TimeUnit.SECONDS)
+        .writeTimeout(120, TimeUnit.SECONDS)
+        .build()
 
     // ── Data class that mirrors the Supabase `meetings` table ──
     data class SupaMeeting(
@@ -125,6 +134,68 @@ class SupabaseClient(
                     throw Exception("HTTP ${response.code}: $errBody")
                 }
                 response.close()
+            }
+        }
+    }
+
+    /**
+     * Upload an audio file to Supabase Storage bucket "audio".
+     * Uses x-upsert so re-sharing is safe. Requires the bucket to exist in Supabase.
+     */
+    suspend fun uploadAudioFile(meetingId: String, file: File): Result<Unit> {
+        return runCatching {
+            val body = file.asRequestBody("audio/mp4".toMediaType())
+            val request = Request.Builder()
+                .url("$supabaseUrl/storage/v1/object/audio/$meetingId.m4a")
+                .header("apikey", anonKey)
+                .header("Authorization", "Bearer $anonKey")
+                .header("x-upsert", "true")
+                .post(body)
+                .build()
+
+            withContext(Dispatchers.IO) {
+                val response = fileClient.newCall(request).execute()
+                if (!response.isSuccessful) {
+                    val errBody = response.body?.string() ?: ""
+                    response.close()
+                    throw Exception("HTTP ${response.code}: $errBody")
+                }
+                response.close()
+            }
+        }
+    }
+
+    /**
+     * Try to download an audio file from Supabase Storage.
+     * Returns true if downloaded successfully, false if the file doesn't exist (404).
+     * Throws for other errors.
+     */
+    suspend fun tryDownloadAudio(meetingId: String, destFile: File): Result<Boolean> {
+        return runCatching {
+            val request = Request.Builder()
+                .url("$supabaseUrl/storage/v1/object/audio/$meetingId.m4a")
+                .header("apikey", anonKey)
+                .header("Authorization", "Bearer $anonKey")
+                .get()
+                .build()
+
+            withContext(Dispatchers.IO) {
+                val response = fileClient.newCall(request).execute()
+                if (response.code == 404) {
+                    response.close()
+                    return@withContext false
+                }
+                if (!response.isSuccessful) {
+                    val errBody = response.body?.string() ?: ""
+                    response.close()
+                    throw Exception("HTTP ${response.code}: $errBody")
+                }
+                destFile.parentFile?.mkdirs()
+                response.body!!.byteStream().use { input ->
+                    destFile.outputStream().use { output -> input.copyTo(output) }
+                }
+                response.close()
+                true
             }
         }
     }
