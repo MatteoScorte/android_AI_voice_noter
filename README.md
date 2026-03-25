@@ -11,7 +11,7 @@ Trasforma i tuoi audio, note vocali e lezioni universitarie in verbali, riassunt
 
 <br>
 
-**📅 Ultimo Aggiornamento:** 24 Marzo 2026 *(v1.0.2)*
+**📅 Ultimo Aggiornamento:** 25 Marzo 2026 *(v1.0.3)*
 
 *Clicca uno dei pulsanti qui sopra per scaricare la primissima volta o per aggiornare l'applicazione!*
 
