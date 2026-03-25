@@ -65,7 +65,7 @@ data class TranscriptUiState(
     // Cloud sharing
     val isShared: Boolean = false,
     val isSharing: Boolean = false,
-    val audioUploadError: Boolean = false,
+    val audioUploadError: String? = null,
     // Category picker
     val categories: List<PromptCategoryEntity> = emptyList(),
     val categoryId: Int = 0,
@@ -404,7 +404,7 @@ class TranscriptViewModel(application: Application) : AndroidViewModel(applicati
      */
     fun shareMeeting() {
         val id = _uiState.value.meetingId
-        _uiState.value = _uiState.value.copy(isSharing = true, audioUploadError = false)
+        _uiState.value = _uiState.value.copy(isSharing = true, audioUploadError = null)
         viewModelScope.launch {
             try {
                 val url = settingsRepository.supabaseUrl.first()
@@ -422,14 +422,15 @@ class TranscriptViewModel(application: Application) : AndroidViewModel(applicati
                 client.upsertMeeting(sharedMeeting, meetingRepository.deviceId)
                 // Upload audio file and track if it succeeded
                 val audioFile = java.io.File(meeting.audioFilePath)
-                val audioUploadFailed = if (meeting.audioFilePath.isNotEmpty() && audioFile.exists()) {
-                    client.uploadAudioFile(meeting.id, audioFile).isFailure
-                } else false
+                val audioError = if (meeting.audioFilePath.isNotEmpty() && audioFile.exists()) {
+                    val r = client.uploadAudioFile(meeting.id, audioFile)
+                    r.exceptionOrNull()?.message
+                } else null
                 meetingRepository.updateMeeting(sharedMeeting)
                 _uiState.value = _uiState.value.copy(
                     isSharing = false,
                     isShared = true,
-                    audioUploadError = audioUploadFailed
+                    audioUploadError = audioError
                 )
             } catch (e: Exception) {
                 _uiState.value = _uiState.value.copy(

@@ -579,7 +579,7 @@ fun TranscriptScreen(
                             isShared         = uiState.isShared,
                             isSharing        = uiState.isSharing,
                             audioUploadError = uiState.audioUploadError,
-                            onShare          = onShareToCloud
+                            onShare          = onShareToCloud,
                         )
                         Spacer(Modifier.height(48.dp))
                     }
@@ -1265,7 +1265,7 @@ private fun ProcessingAnimation(step: String) {
 private fun CloudSyncSection(
     isShared: Boolean,
     isSharing: Boolean,
-    audioUploadError: Boolean,
+    audioUploadError: String?,
     onShare: () -> Unit
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -1310,9 +1310,9 @@ private fun CloudSyncSection(
                         Text("Ri-carica", color = AccentTeal.copy(alpha = 0.7f), fontSize = 11.sp)
                     }
                 }
-                if (audioUploadError) {
+                if (audioUploadError != null) {
                     Text(
-                        "⚠️ Trascrizione condivisa, ma l'audio non è stato caricato. Controlla che il bucket 'audio' esista su Supabase Storage e riprova con 'Ri-carica'.",
+                        "⚠️ Audio non caricato: $audioUploadError",
                         color = ErrorRed.copy(alpha = 0.8f),
                         style = MaterialTheme.typography.labelSmall,
                         modifier = Modifier.padding(horizontal = 4.dp)
