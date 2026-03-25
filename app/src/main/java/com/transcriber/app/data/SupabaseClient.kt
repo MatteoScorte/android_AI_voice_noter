@@ -172,10 +172,9 @@ class SupabaseClient(
      */
     suspend fun tryDownloadAudio(meetingId: String, destFile: File): Result<Boolean> {
         return runCatching {
+            // Public bucket URL — works without auth for public Supabase Storage buckets
             val request = Request.Builder()
-                .url("$supabaseUrl/storage/v1/object/audio/$meetingId.m4a")
-                .header("apikey", anonKey)
-                .header("Authorization", "Bearer $anonKey")
+                .url("$supabaseUrl/storage/v1/object/public/audio/$meetingId.m4a")
                 .get()
                 .build()
 

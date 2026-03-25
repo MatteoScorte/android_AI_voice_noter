@@ -576,9 +576,10 @@ fun TranscriptScreen(
                 if (uiState.status == MeetingStatus.COMPLETED) {
                     item {
                         CloudSyncSection(
-                            isShared  = uiState.isShared,
-                            isSharing = uiState.isSharing,
-                            onShare   = onShareToCloud
+                            isShared         = uiState.isShared,
+                            isSharing        = uiState.isSharing,
+                            audioUploadError = uiState.audioUploadError,
+                            onShare          = onShareToCloud
                         )
                         Spacer(Modifier.height(48.dp))
                     }
@@ -1264,53 +1265,72 @@ private fun ProcessingAnimation(step: String) {
 private fun CloudSyncSection(
     isShared: Boolean,
     isSharing: Boolean,
+    audioUploadError: Boolean,
     onShare: () -> Unit
 ) {
-    when {
-        isShared -> {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(8.dp))
-                    .border(1.dp, AccentTeal.copy(alpha = 0.35f), RoundedCornerShape(8.dp))
-                    .background(AccentTeal.copy(alpha = 0.06f))
-                    .padding(vertical = 14.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.Center
-            ) {
-                Icon(Icons.Default.CloudDone, null, tint = AccentTeal, modifier = Modifier.size(18.dp))
-                Spacer(Modifier.width(8.dp))
-                Text(
-                    "CONDIVISO",
-                    color = AccentTeal,
-                    fontWeight = FontWeight.SemiBold,
-                    fontSize = 12.sp,
-                    letterSpacing = 1.5.sp
-                )
+    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        when {
+            isSharing -> {
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(vertical = 14.dp),
+                    horizontalArrangement = Arrangement.Center,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    CircularProgressIndicator(modifier = Modifier.size(18.dp), color = AccentGreen, strokeWidth = 2.dp)
+                    Spacer(Modifier.width(10.dp))
+                    Text("Condivisione in corso...", color = TextGray, style = MaterialTheme.typography.bodySmall)
+                }
             }
-        }
-        isSharing -> {
-            Row(
-                modifier = Modifier.fillMaxWidth().padding(vertical = 14.dp),
-                horizontalArrangement = Arrangement.Center,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                CircularProgressIndicator(modifier = Modifier.size(18.dp), color = AccentGreen, strokeWidth = 2.dp)
-                Spacer(Modifier.width(10.dp))
-                Text("Condivisione in corso...", color = TextGray, style = MaterialTheme.typography.bodySmall)
+            isShared -> {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(8.dp))
+                        .border(1.dp, AccentTeal.copy(alpha = 0.35f), RoundedCornerShape(8.dp))
+                        .background(AccentTeal.copy(alpha = 0.06f))
+                        .padding(horizontal = 16.dp, vertical = 12.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(Icons.Default.CloudDone, null, tint = AccentTeal, modifier = Modifier.size(18.dp))
+                    Spacer(Modifier.width(8.dp))
+                    Text(
+                        "CONDIVISO",
+                        color = AccentTeal,
+                        fontWeight = FontWeight.SemiBold,
+                        fontSize = 12.sp,
+                        letterSpacing = 1.5.sp,
+                        modifier = Modifier.weight(1f)
+                    )
+                    TextButton(
+                        onClick = onShare,
+                        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp)
+                    ) {
+                        Icon(Icons.Default.Refresh, null, tint = AccentTeal.copy(alpha = 0.7f), modifier = Modifier.size(14.dp))
+                        Spacer(Modifier.width(4.dp))
+                        Text("Ri-carica", color = AccentTeal.copy(alpha = 0.7f), fontSize = 11.sp)
+                    }
+                }
+                if (audioUploadError) {
+                    Text(
+                        "⚠️ Trascrizione condivisa, ma l'audio non è stato caricato. Controlla che il bucket 'audio' esista su Supabase Storage e riprova con 'Ri-carica'.",
+                        color = ErrorRed.copy(alpha = 0.8f),
+                        style = MaterialTheme.typography.labelSmall,
+                        modifier = Modifier.padding(horizontal = 4.dp)
+                    )
+                }
             }
-        }
-        else -> {
-            OutlinedButton(
-                onClick = onShare,
-                colors = ButtonDefaults.outlinedButtonColors(contentColor = AccentTeal),
-                border = BorderStroke(1.dp, AccentTeal.copy(alpha = 0.5f)),
-                shape = RoundedCornerShape(8.dp),
-                modifier = Modifier.fillMaxWidth().height(48.dp)
-            ) {
-                Icon(Icons.Default.CloudUpload, null, modifier = Modifier.size(18.dp))
-                Spacer(Modifier.width(8.dp))
-                Text("CONDIVIDI SU CLOUD", letterSpacing = 1.5.sp, fontSize = 12.sp)
+            else -> {
+                OutlinedButton(
+                    onClick = onShare,
+                    colors = ButtonDefaults.outlinedButtonColors(contentColor = AccentTeal),
+                    border = BorderStroke(1.dp, AccentTeal.copy(alpha = 0.5f)),
+                    shape = RoundedCornerShape(8.dp),
+                    modifier = Modifier.fillMaxWidth().height(48.dp)
+                ) {
+                    Icon(Icons.Default.CloudUpload, null, modifier = Modifier.size(18.dp))
+                    Spacer(Modifier.width(8.dp))
+                    Text("CONDIVIDI SU CLOUD", letterSpacing = 1.5.sp, fontSize = 12.sp)
+                }
             }
         }
     }

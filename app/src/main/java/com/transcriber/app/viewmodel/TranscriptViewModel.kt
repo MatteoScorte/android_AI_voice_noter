@@ -65,6 +65,7 @@ data class TranscriptUiState(
     // Cloud sharing
     val isShared: Boolean = false,
     val isSharing: Boolean = false,
+    val audioUploadError: Boolean = false,
     // Category picker
     val categories: List<PromptCategoryEntity> = emptyList(),
     val categoryId: Int = 0,
@@ -403,7 +404,7 @@ class TranscriptViewModel(application: Application) : AndroidViewModel(applicati
      */
     fun shareMeeting() {
         val id = _uiState.value.meetingId
-        _uiState.value = _uiState.value.copy(isSharing = true)
+        _uiState.value = _uiState.value.copy(isSharing = true, audioUploadError = false)
         viewModelScope.launch {
             try {
                 val url = settingsRepository.supabaseUrl.first()
@@ -419,13 +420,17 @@ class TranscriptViewModel(application: Application) : AndroidViewModel(applicati
                 val sharedMeeting = meeting.copy(isShared = true)
                 val client = SupabaseClient(url, key)
                 client.upsertMeeting(sharedMeeting, meetingRepository.deviceId)
-                // Upload audio file if it exists locally
+                // Upload audio file and track if it succeeded
                 val audioFile = java.io.File(meeting.audioFilePath)
-                if (meeting.audioFilePath.isNotEmpty() && audioFile.exists()) {
-                    client.uploadAudioFile(meeting.id, audioFile)
-                }
+                val audioUploadFailed = if (meeting.audioFilePath.isNotEmpty() && audioFile.exists()) {
+                    client.uploadAudioFile(meeting.id, audioFile).isFailure
+                } else false
                 meetingRepository.updateMeeting(sharedMeeting)
-                _uiState.value = _uiState.value.copy(isSharing = false, isShared = true)
+                _uiState.value = _uiState.value.copy(
+                    isSharing = false,
+                    isShared = true,
+                    audioUploadError = audioUploadFailed
+                )
             } catch (e: Exception) {
                 _uiState.value = _uiState.value.copy(
                     isSharing = false,
