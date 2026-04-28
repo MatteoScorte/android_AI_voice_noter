@@ -4,16 +4,18 @@ import android.content.Context
 import androidx.room.Database
 import androidx.room.Room
 import androidx.room.RoomDatabase
+import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 
 @Database(
-    entities = [PromptCategoryEntity::class],
-    version = 1,
+    entities = [PromptCategoryEntity::class, CanvaSkillEntity::class],
+    version = 2,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
 
     abstract fun promptCategoryDao(): PromptCategoryDao
+    abstract fun canvaSkillDao(): CanvaSkillDao
 
     companion object {
 
@@ -28,25 +30,56 @@ abstract class AppDatabase : RoomDatabase() {
                     "transcriber_db"
                 )
                     .addCallback(PrePopulateCallback())
+                    .addMigrations(MIGRATION_1_2)
                     .build()
                     .also { INSTANCE = it }
             }
 
-        // ── Default categories ────────────────────────────────────────────────
+        // ── Migration v1 → v2: add canva_skills table ─────────────────────────
+
+        private val MIGRATION_1_2 = object : Migration(1, 2) {
+            override fun migrate(database: SupportSQLiteDatabase) {
+                database.execSQL(
+                    """CREATE TABLE IF NOT EXISTS canva_skills (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                        name TEXT NOT NULL,
+                        emoji TEXT NOT NULL,
+                        colorHex TEXT NOT NULL,
+                        outputType TEXT NOT NULL,
+                        agentPrompt TEXT NOT NULL,
+                        isDefault INTEGER NOT NULL DEFAULT 0
+                    )"""
+                )
+                defaultCanvaSkills().forEach { skill ->
+                    database.execSQL(
+                        "INSERT INTO canva_skills (name, emoji, colorHex, outputType, agentPrompt, isDefault) VALUES (?, ?, ?, ?, ?, ?)",
+                        arrayOf(skill.name, skill.emoji, skill.colorHex, skill.outputType, skill.agentPrompt, if (skill.isDefault) 1 else 0)
+                    )
+                }
+            }
+        }
+
+        // ── Pre-populate on fresh install ─────────────────────────────────────
 
         private class PrePopulateCallback : RoomDatabase.Callback() {
             override fun onCreate(db: SupportSQLiteDatabase) {
                 super.onCreate(db)
-                // Use raw SQL so we don't need the DAO (which requires the DB to already exist).
-                // Positional binding prevents any SQL injection from prompt text.
                 defaultCategories().forEach { cat ->
                     db.execSQL(
                         "INSERT INTO prompt_categories (name, emoji, colorHex, systemPrompt, isDefault) VALUES (?, ?, ?, ?, ?)",
                         arrayOf(cat.name, cat.emoji, cat.colorHex, cat.systemPrompt, if (cat.isDefault) 1 else 0)
                     )
                 }
+                defaultCanvaSkills().forEach { skill ->
+                    db.execSQL(
+                        "INSERT INTO canva_skills (name, emoji, colorHex, outputType, agentPrompt, isDefault) VALUES (?, ?, ?, ?, ?, ?)",
+                        arrayOf(skill.name, skill.emoji, skill.colorHex, skill.outputType, skill.agentPrompt, if (skill.isDefault) 1 else 0)
+                    )
+                }
             }
         }
+
+        // ── Default Prompt Categories ─────────────────────────────────────────
 
         private fun defaultCategories(): List<PromptCategoryEntity> = listOf(
 
@@ -128,6 +161,106 @@ Il Concetto in Parole Povere (ELI5): Spiega l'argomento centrale in 3 frasi, eli
 L'Analogia Perfetta: Crea un'analogia o una metafora con oggetti di vita quotidiana per far capire come funziona il meccanismo discusso.
 De-costruzione Passo-Passo: Spiega il processo logico o l'algoritmo step by step, in modo sequenziale.
 Chiarimento Dubbi: Anticipa 2 o 3 domande che una persona confusa potrebbe farsi su questo testo e fornisci le risposte.
+                """.trimIndent()
+            )
+        )
+
+        // ── Default Canva Skills ──────────────────────────────────────────────
+
+        private fun defaultCanvaSkills(): List<CanvaSkillEntity> = listOf(
+
+            CanvaSkillEntity(
+                name = "Slide Universitarie",
+                emoji = "🎓",
+                colorHex = "#4A90D9",
+                outputType = "Slide",
+                isDefault = true,
+                agentPrompt = """
+Crea una presentazione Canva per studio e ripasso universitario.
+Stile: accademico, chiaro, ordinato. Sfondo scuro o neutro.
+Struttura:
+- Slide 1: titolo della lezione + materia
+- Slide 2-3: contesto e obiettivi
+- Slide 4-8: concetti chiave (uno per slide, con definizione e bullet points)
+- Slide 9: esempi pratici o casi studio
+- Slide 10: domande di ripasso
+Regole: max 5 righe per slide, usa bullet points, evidenzia i termini tecnici in colore diverso.
+                """.trimIndent()
+            ),
+
+            CanvaSkillEntity(
+                name = "Presentazione Cliente",
+                emoji = "💼",
+                colorHex = "#49DD7F",
+                outputType = "Slide",
+                isDefault = true,
+                agentPrompt = """
+Crea una presentazione professionale da mostrare a un cliente.
+Stile: corporate, pulito, elegante. Palette colori coerente e professionale.
+Struttura:
+- Slide 1: titolo + sottotitolo + logo placeholder
+- Slide 2: executive summary (3 punti chiave)
+- Slide 3-4: contesto e problema affrontato
+- Slide 5-7: soluzione proposta con dettagli
+- Slide 8: risultati attesi o già ottenuti
+- Slide 9: timeline / prossimi step
+- Slide 10: contatti e call to action
+Regole: tono formale, dati e numeri dove possibile, max 4 righe per slide.
+                """.trimIndent()
+            ),
+
+            CanvaSkillEntity(
+                name = "Locandina Evento",
+                emoji = "🎨",
+                colorHex = "#FF8A65",
+                outputType = "Locandina",
+                isDefault = true,
+                agentPrompt = """
+Crea una locandina verticale (formato A4 o Story) per un evento.
+Stile: visivo, d'impatto, moderno. Usa colori vivaci e tipografia grande.
+Elementi obbligatori:
+- Titolo dell'evento (grande, in evidenza)
+- Data, ora e luogo
+- Breve descrizione (max 2 righe)
+- Nome dell'organizzatore o brand
+- Eventuale QR code o link placeholder
+Regole: priorità all'impatto visivo, testo minimo ma essenziale, usa immagini o sfondi grafici.
+                """.trimIndent()
+            ),
+
+            CanvaSkillEntity(
+                name = "Infografica",
+                emoji = "📊",
+                colorHex = "#B39DDB",
+                outputType = "Infografica",
+                isDefault = true,
+                agentPrompt = """
+Crea un'infografica verticale che sintetizza visivamente le informazioni principali.
+Stile: colorato, iconografico, facile da leggere a colpo d'occhio.
+Struttura:
+- Titolo in cima (grande e chiaro)
+- 4-6 sezioni con icona + titoletto + 1-2 righe di testo
+- Dati numerici evidenziati graficamente (cerchi, barre, frecce)
+- Fonte o firma in fondo
+Regole: zero muri di testo, ogni sezione deve essere autonoma, usa icone per rappresentare ogni concetto.
+                """.trimIndent()
+            ),
+
+            CanvaSkillEntity(
+                name = "Post Social",
+                emoji = "📱",
+                colorHex = "#FFD54F",
+                outputType = "Social",
+                isDefault = true,
+                agentPrompt = """
+Crea un set di post per social media (formato quadrato 1:1 o verticale 4:5).
+Stile: moderno, scroll-stopping, adatto a Instagram/LinkedIn.
+Per ogni post:
+- Titolo o hook forte nella prima riga
+- Max 3-4 punti chiave ben spaziati
+- Call to action finale (es. "Scopri di più", "Salva questo post")
+- Palette colori coerente tra tutti i post del set
+Regole: testo grande e leggibile, contrasto alto, usa emoji con parsimonia.
                 """.trimIndent()
             )
         )

@@ -63,7 +63,8 @@ fun HomeScreen(
     onCreateFolder: (name: String, colorHex: String) -> Unit,
     onUpdateFolder: (id: String, newName: String, colorHex: String) -> Unit,
     onDeleteFolder: (id: String) -> Unit,
-    onAssignFolder: (meetingId: String, folderId: String?) -> Unit
+    onAssignFolder: (meetingId: String, folderId: String?) -> Unit,
+    onCanvaSkillsClick: () -> Unit
 ) {
     var showDialog by rememberSaveable { mutableStateOf(false) }
     var showInbox by rememberSaveable { mutableStateOf(false) }
@@ -116,6 +117,20 @@ fun HomeScreen(
                             onClick = {
                                 scope.launch { drawerState.close() }
                                 onCategoriesClick()
+                            },
+                            colors = NavigationDrawerItemDefaults.colors(
+                                unselectedContainerColor = Color.Transparent,
+                                unselectedTextColor = TextWhite,
+                                unselectedIconColor = TextGray
+                            )
+                        )
+                        NavigationDrawerItem(
+                            icon = { Icon(Icons.Default.Brush, null) },
+                            label = { Text("Canva Skills", fontWeight = FontWeight.Medium) },
+                            selected = false,
+                            onClick = {
+                                scope.launch { drawerState.close() }
+                                onCanvaSkillsClick()
                             },
                             colors = NavigationDrawerItemDefaults.colors(
                                 unselectedContainerColor = Color.Transparent,

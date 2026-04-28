@@ -10,12 +10,15 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
+import com.transcriber.app.ui.screens.CanvaSkillEditorScreen
+import com.transcriber.app.ui.screens.CanvaSkillManagerScreen
 import com.transcriber.app.ui.screens.CategoryEditorScreen
 import com.transcriber.app.ui.screens.CategoryManagerScreen
 import com.transcriber.app.ui.screens.HomeScreen
 import com.transcriber.app.ui.screens.SettingsScreen
 import com.transcriber.app.ui.screens.TranscriptScreen
 import com.transcriber.app.ui.theme.TranscriberTheme
+import com.transcriber.app.viewmodel.CanvaSkillViewModel
 import com.transcriber.app.viewmodel.CategoryViewModel
 import com.transcriber.app.viewmodel.HomeViewModel
 import com.transcriber.app.viewmodel.SettingsViewModel
@@ -55,7 +58,8 @@ fun TranscriberApp() {
                     onCreateFolder = { name, color -> viewModel.createFolder(name, color) },
                     onUpdateFolder = { id, name, color -> viewModel.updateFolder(id, name, color) },
                     onDeleteFolder = { viewModel.deleteFolder(it) },
-                    onAssignFolder = { meetingId, folderId -> viewModel.assignFolderToMeeting(meetingId, folderId) }
+                    onAssignFolder = { meetingId, folderId -> viewModel.assignFolderToMeeting(meetingId, folderId) },
+                    onCanvaSkillsClick = { navController.navigate("canva_skill_manager") }
                 )
             }
 
@@ -110,6 +114,36 @@ fun TranscriberApp() {
                     onBack = { navController.popBackStack() },
                     onNewCategory = { navController.navigate("category_editor") },
                     onEditCategory = { id -> navController.navigate("category_editor?categoryId=$id") }
+                )
+            }
+
+            // ── Canva Skill Manager ────────────────────────────────────────────
+            composable("canva_skill_manager") {
+                val viewModel: CanvaSkillViewModel = viewModel()
+                CanvaSkillManagerScreen(
+                    viewModel = viewModel,
+                    onBack = { navController.popBackStack() },
+                    onNewSkill = { navController.navigate("canva_skill_editor") },
+                    onEditSkill = { id -> navController.navigate("canva_skill_editor?skillId=$id") }
+                )
+            }
+
+            // ── Canva Skill Editor ─────────────────────────────────────────────
+            composable(
+                "canva_skill_editor?skillId={skillId}",
+                arguments = listOf(
+                    navArgument("skillId") {
+                        type = NavType.IntType
+                        defaultValue = 0
+                    }
+                )
+            ) { backStackEntry ->
+                val skillId = backStackEntry.arguments?.getInt("skillId") ?: 0
+                val viewModel: CanvaSkillViewModel = viewModel()
+                CanvaSkillEditorScreen(
+                    skillId = skillId,
+                    viewModel = viewModel,
+                    onBack = { navController.popBackStack() }
                 )
             }
 

@@ -1,0 +1,344 @@
+package com.transcriber.app.ui.screens
+
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.DeleteOutline
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.Dialog
+import com.transcriber.app.ui.theme.*
+import com.transcriber.app.viewmodel.CanvaSkillViewModel
+import java.text.BreakIterator
+
+private val SKILL_PRESET_COLORS = listOf(
+    "#4A90D9", "#49DD7F", "#FF8A65", "#B39DDB",
+    "#FFD54F", "#F06292", "#4DD0E1", "#FF5252",
+    "#80CBC4", "#CE93D8"
+)
+
+private val OUTPUT_TYPES = listOf("Slide", "Locandina", "Infografica", "Social", "Altro")
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun CanvaSkillEditorScreen(
+    skillId: Int,
+    viewModel: CanvaSkillViewModel,
+    onBack: () -> Unit
+) {
+    val state by viewModel.editor.collectAsState()
+    var showDeleteDialog by remember { mutableStateOf(false) }
+
+    LaunchedEffect(skillId) {
+        viewModel.initEditor(skillId)
+    }
+
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = {
+                    Text(
+                        if (state.isNew) "NUOVA SKILL" else "MODIFICA SKILL",
+                        letterSpacing = 1.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = TextWhite,
+                        fontSize = 16.sp
+                    )
+                },
+                navigationIcon = {
+                    IconButton(onClick = onBack) {
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, "Indietro", tint = TextWhite)
+                    }
+                },
+                actions = {
+                    if (!state.isNew && !state.isDefault) {
+                        IconButton(onClick = { showDeleteDialog = true }) {
+                            Icon(Icons.Default.DeleteOutline, "Elimina", tint = ErrorRed)
+                        }
+                    }
+                },
+                colors = TopAppBarDefaults.topAppBarColors(containerColor = DarkBackground)
+            )
+        },
+        containerColor = DarkBackground
+    ) { padding ->
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(padding)
+                .padding(horizontal = 24.dp)
+                .verticalScroll(rememberScrollState())
+        ) {
+            Spacer(Modifier.height(24.dp))
+
+            // ── EMOJI + NOME ──────────────────────────────────────────────────
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                OutlinedTextField(
+                    value = state.emoji,
+                    onValueChange = { viewModel.updateEmoji(firstGraphemeClusterSkill(it)) },
+                    placeholder = { Text("✨", color = TextGray.copy(alpha = 0.5f)) },
+                    modifier = Modifier.width(72.dp),
+                    singleLine = true,
+                    colors = skillFieldColors(),
+                    shape = RoundedCornerShape(8.dp),
+                    textStyle = TextStyle(fontSize = 22.sp, textAlign = TextAlign.Center, color = TextWhite)
+                )
+                OutlinedTextField(
+                    value = state.name,
+                    onValueChange = viewModel::updateName,
+                    label = { Text("Nome skill") },
+                    placeholder = { Text("Es. Slide Cliente, Locandina...", color = TextGray.copy(alpha = 0.5f)) },
+                    modifier = Modifier.weight(1f),
+                    singleLine = true,
+                    colors = skillFieldColors(),
+                    shape = RoundedCornerShape(8.dp)
+                )
+            }
+
+            Spacer(Modifier.height(24.dp))
+
+            // ── TIPO DI OUTPUT ────────────────────────────────────────────────
+            SkillFieldLabel("TIPO DI OUTPUT")
+            Spacer(Modifier.height(10.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+                OUTPUT_TYPES.forEach { type ->
+                    val selected = state.outputType == type
+                    val accent = parseHexColor(state.colorHex)
+                    FilterChip(
+                        selected = selected,
+                        onClick = { viewModel.updateOutputType(type) },
+                        label = { Text(type, fontSize = 12.sp, fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal) },
+                        colors = FilterChipDefaults.filterChipColors(
+                            selectedContainerColor = accent.copy(alpha = 0.2f),
+                            selectedLabelColor = accent,
+                            labelColor = TextGray,
+                            containerColor = Color.Transparent
+                        ),
+                        border = FilterChipDefaults.filterChipBorder(
+                            enabled = true,
+                            selected = selected,
+                            borderColor = DarkSurfaceVariant,
+                            selectedBorderColor = accent.copy(alpha = 0.5f)
+                        )
+                    )
+                }
+            }
+
+            Spacer(Modifier.height(24.dp))
+
+            // ── COLORE ────────────────────────────────────────────────────────
+            SkillFieldLabel("COLORE")
+            Spacer(Modifier.height(12.dp))
+            SkillColorPicker(selectedHex = state.colorHex, onSelect = viewModel::updateColor)
+
+            Spacer(Modifier.height(28.dp))
+
+            // ── ISTRUZIONI AGENTE ─────────────────────────────────────────────
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                SkillFieldLabel("ISTRUZIONI AGENTE")
+                Text(
+                    "${state.agentPrompt.length} car.",
+                    color = TextGray.copy(alpha = 0.5f),
+                    style = MaterialTheme.typography.labelSmall
+                )
+            }
+            Spacer(Modifier.height(6.dp))
+            Text(
+                "Descrivi come l'agente deve comportarsi: stile, struttura, numero di slide/elementi, tono.",
+                color = TextGray.copy(alpha = 0.5f),
+                style = MaterialTheme.typography.labelSmall,
+                lineHeight = 16.sp
+            )
+            Spacer(Modifier.height(8.dp))
+            OutlinedTextField(
+                value = state.agentPrompt,
+                onValueChange = viewModel::updatePrompt,
+                placeholder = {
+                    Text(
+                        "Es. Crea una presentazione professionale da 10 slide, stile corporate, sfondo scuro...",
+                        color = TextGray.copy(alpha = 0.4f),
+                        style = MaterialTheme.typography.bodySmall
+                    )
+                },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(min = 220.dp),
+                minLines = 10,
+                colors = skillFieldColors(),
+                shape = RoundedCornerShape(8.dp),
+                textStyle = MaterialTheme.typography.bodySmall.copy(
+                    color = TextWhite,
+                    lineHeight = 20.sp
+                )
+            )
+
+            if (state.isDefault) {
+                Spacer(Modifier.height(10.dp))
+                Text(
+                    "Questa è una skill di default. Puoi modificare le istruzioni, ma non eliminarla.",
+                    color = TextGray.copy(alpha = 0.6f),
+                    style = MaterialTheme.typography.labelSmall,
+                    lineHeight = 16.sp
+                )
+            }
+
+            Spacer(Modifier.height(36.dp))
+
+            // ── SALVA ─────────────────────────────────────────────────────────
+            Button(
+                onClick = { viewModel.save(onBack) },
+                enabled = state.name.isNotBlank(),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = AccentGreen,
+                    contentColor = DarkBackground,
+                    disabledContainerColor = DarkSurfaceVariant,
+                    disabledContentColor = TextGray
+                ),
+                shape = RoundedCornerShape(8.dp),
+                modifier = Modifier.fillMaxWidth().height(52.dp)
+            ) {
+                Icon(Icons.Default.Check, null, modifier = Modifier.size(20.dp))
+                Spacer(Modifier.width(8.dp))
+                Text("SALVA", fontWeight = FontWeight.Bold, letterSpacing = 1.5.sp)
+            }
+
+            Spacer(Modifier.height(40.dp))
+        }
+    }
+
+    // ── Delete confirmation ────────────────────────────────────────────────────
+    if (showDeleteDialog) {
+        Dialog(onDismissRequest = { showDeleteDialog = false }) {
+            Card(
+                shape = RoundedCornerShape(12.dp),
+                colors = CardDefaults.cardColors(containerColor = DarkBackground),
+                border = BorderStroke(1.dp, DarkSurfaceVariant),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Column(
+                    modifier = Modifier.padding(24.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    Icon(Icons.Default.DeleteOutline, null, tint = ErrorRed, modifier = Modifier.size(32.dp))
+                    Spacer(Modifier.height(16.dp))
+                    Text("ELIMINA SKILL", letterSpacing = 1.sp, style = MaterialTheme.typography.labelLarge, color = ErrorRed, fontWeight = FontWeight.Bold)
+                    Spacer(Modifier.height(12.dp))
+                    Text(
+                        "Vuoi eliminare \"${state.name}\"? L'azione è irreversibile.",
+                        color = TextGray,
+                        style = MaterialTheme.typography.bodyMedium,
+                        textAlign = TextAlign.Center
+                    )
+                    Spacer(Modifier.height(28.dp))
+                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                        OutlinedButton(
+                            onClick = { showDeleteDialog = false },
+                            colors = ButtonDefaults.outlinedButtonColors(contentColor = TextWhite),
+                            border = BorderStroke(1.dp, DarkSurfaceVariant),
+                            shape = RoundedCornerShape(8.dp),
+                            modifier = Modifier.weight(1f).height(48.dp)
+                        ) { Text("ANNULLA", letterSpacing = 1.sp, fontSize = 12.sp) }
+                        OutlinedButton(
+                            onClick = { showDeleteDialog = false; viewModel.delete(onBack) },
+                            colors = ButtonDefaults.outlinedButtonColors(contentColor = ErrorRed),
+                            border = BorderStroke(1.dp, ErrorRed.copy(alpha = 0.5f)),
+                            shape = RoundedCornerShape(8.dp),
+                            modifier = Modifier.weight(1f).height(48.dp)
+                        ) { Text("ELIMINA", letterSpacing = 1.sp, fontSize = 12.sp, fontWeight = FontWeight.SemiBold) }
+                    }
+                }
+            }
+        }
+    }
+}
+
+// ── Color picker ──────────────────────────────────────────────────────────────
+
+@Composable
+private fun SkillColorPicker(selectedHex: String, onSelect: (String) -> Unit) {
+    val selectedColor = parseHexColor(selectedHex)
+    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+        SKILL_PRESET_COLORS.forEach { hex ->
+            val color = parseHexColor(hex)
+            Box(
+                modifier = Modifier
+                    .size(34.dp)
+                    .clip(CircleShape)
+                    .background(color)
+                    .then(
+                        if (hex.equals(selectedHex, ignoreCase = true))
+                            Modifier.border(3.dp, Color.White, CircleShape)
+                        else
+                            Modifier.border(2.dp, Color.Transparent, CircleShape)
+                    )
+                    .clickable { onSelect(hex) }
+            )
+        }
+    }
+    Spacer(Modifier.height(10.dp))
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Box(Modifier.size(14.dp).clip(CircleShape).background(selectedColor))
+        Spacer(Modifier.width(6.dp))
+        Text(selectedHex.uppercase(), color = TextGray, style = MaterialTheme.typography.labelSmall, letterSpacing = 1.sp)
+    }
+}
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+
+@Composable
+private fun SkillFieldLabel(text: String) {
+    Text(
+        text,
+        style = MaterialTheme.typography.labelMedium,
+        color = AccentGreen,
+        letterSpacing = 1.5.sp,
+        fontWeight = FontWeight.Bold
+    )
+}
+
+@Composable
+private fun skillFieldColors() = OutlinedTextFieldDefaults.colors(
+    focusedTextColor = TextWhite,
+    unfocusedTextColor = TextWhite,
+    focusedBorderColor = AccentGreen,
+    unfocusedBorderColor = DarkSurfaceVariant,
+    cursorColor = AccentGreen,
+    focusedLabelColor = AccentGreen,
+    unfocusedLabelColor = TextGray,
+    focusedPlaceholderColor = TextGray.copy(alpha = 0.4f),
+    unfocusedPlaceholderColor = TextGray.copy(alpha = 0.3f)
+)
+
+private fun firstGraphemeClusterSkill(text: String): String {
+    if (text.isEmpty()) return text
+    val bi = BreakIterator.getCharacterInstance()
+    bi.setText(text)
+    val end = bi.next()
+    return if (end == BreakIterator.DONE) text else text.substring(0, end)
+}
