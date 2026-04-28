@@ -20,7 +20,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
@@ -94,49 +96,33 @@ fun CategoryEditorScreen(
         ) {
             Spacer(Modifier.height(24.dp))
 
-            // ── EMOJI ──────────────────────────────────────────────────────────
-            FieldLabel("EMOJI")
-            Spacer(Modifier.height(8.dp))
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                // Live preview bubble
-                Box(
-                    modifier = Modifier
-                        .size(52.dp)
-                        .clip(CircleShape)
-                        .background(parseHexColor(state.colorHex).copy(alpha = 0.2f)),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(state.emoji.ifBlank { "📝" }, fontSize = 24.sp)
-                }
-                Spacer(Modifier.width(16.dp))
+            // ── EMOJI + NOME ──────────────────────────────────────────────────
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
                 OutlinedTextField(
                     value = state.emoji,
-                    onValueChange = { newVal ->
-                        // Keep only the first grapheme cluster (handles emoji surrogate pairs)
-                        viewModel.updateEmoji(firstGraphemeCluster(newVal))
-                    },
+                    onValueChange = { newVal -> viewModel.updateEmoji(firstGraphemeCluster(newVal)) },
                     placeholder = { Text("📝", color = TextGray.copy(alpha = 0.5f)) },
-                    modifier = Modifier.width(100.dp),
+                    modifier = Modifier.width(72.dp),
+                    singleLine = true,
+                    colors = editorFieldColors(),
+                    shape = RoundedCornerShape(8.dp),
+                    textStyle = TextStyle(fontSize = 22.sp, textAlign = TextAlign.Center, color = TextWhite)
+                )
+                OutlinedTextField(
+                    value = state.name,
+                    onValueChange = viewModel::updateName,
+                    label = { Text("Nome categoria") },
+                    placeholder = { Text("Es. Lezione, Colloquio...", color = TextGray.copy(alpha = 0.5f)) },
+                    modifier = Modifier.weight(1f),
                     singleLine = true,
                     colors = editorFieldColors(),
                     shape = RoundedCornerShape(8.dp)
                 )
             }
-
-            Spacer(Modifier.height(24.dp))
-
-            // ── NOME ───────────────────────────────────────────────────────────
-            FieldLabel("NOME CATEGORIA")
-            Spacer(Modifier.height(8.dp))
-            OutlinedTextField(
-                value = state.name,
-                onValueChange = viewModel::updateName,
-                placeholder = { Text("Es. Lezione, Colloquio...", color = TextGray.copy(alpha = 0.5f)) },
-                modifier = Modifier.fillMaxWidth(),
-                singleLine = true,
-                colors = editorFieldColors(),
-                shape = RoundedCornerShape(8.dp)
-            )
 
             Spacer(Modifier.height(24.dp))
 

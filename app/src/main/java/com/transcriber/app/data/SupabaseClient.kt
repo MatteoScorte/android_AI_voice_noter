@@ -190,7 +190,8 @@ class SupabaseClient(
                     throw Exception("HTTP ${response.code}: $errBody")
                 }
                 destFile.parentFile?.mkdirs()
-                response.body!!.byteStream().use { input ->
+                val body = response.body ?: return@withContext false
+                body.byteStream().use { input ->
                     destFile.outputStream().use { output -> input.copyTo(output) }
                 }
                 response.close()

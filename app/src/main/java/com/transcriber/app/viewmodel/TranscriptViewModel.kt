@@ -171,7 +171,10 @@ class TranscriptViewModel(application: Application) : AndroidViewModel(applicati
         val speakersToShow = if (aliases.isNotEmpty()) {
             LinkedHashMap(aliases)
         } else {
-            val detected = detectSpeakers(m.finalTranscript)
+            // Detect from rawTranscript first — Deepgram always uses "Speaker N:" there,
+            // so the labels reliably match what needs to be replaced in the raw text.
+            val source = m.rawTranscript.ifBlank { m.finalTranscript }
+            val detected = detectSpeakers(source)
             if (detected.isNotEmpty()) {
                 viewModelScope.launch {
                     meetingRepository.updateMeeting(m.copy(speakerAliases = detected))
@@ -350,14 +353,25 @@ class TranscriptViewModel(application: Application) : AndroidViewModel(applicati
         val current = _uiState.value
         val id = current.meetingId
 
-        val updatedFinalTranscript = current.finalTranscript.replace(originalLabel, trimmed)
-        val updatedRawTranscript = current.rawTranscript.replace(originalLabel, trimmed)
+        val previousDisplay = current.speakers[originalLabel] ?: originalLabel
 
-        val updatedSpeakers = LinkedHashMap<String, String>()
-        current.speakers.forEach { (orig, display) ->
-            if (orig == originalLabel) updatedSpeakers[trimmed] = trimmed
-            else updatedSpeakers[orig] = display
-        }
+        // rawTranscript always starts with the original Deepgram label ("Speaker N:").
+        // Try replacing by originalLabel (key) first — this covers the initial rename
+        // where rawTranscript hasn't been touched yet.  If originalLabel no longer
+        // appears (a prior rename already swapped it for the display name), fall back
+        // to replacing previousDisplay so chained renames keep working correctly.
+        val rawAfterKey = current.rawTranscript.replace(originalLabel, trimmed)
+        val updatedRawTranscript = if (rawAfterKey != current.rawTranscript) rawAfterKey
+            else current.rawTranscript.replace(previousDisplay, trimmed)
+
+        // finalTranscript is a structured summary — speaker names appear as prose, not
+        // as "Speaker N:" labels, so replacing the current display name is correct here.
+        val updatedFinalTranscript = current.finalTranscript.replace(previousDisplay, trimmed)
+
+        // Keep the original key (Deepgram label) intact so future renames can still
+        // locate the speaker in rawTranscript via originalLabel.
+        val updatedSpeakers = LinkedHashMap<String, String>(current.speakers)
+        updatedSpeakers[originalLabel] = trimmed
 
         _uiState.value = current.copy(
             finalTranscript = updatedFinalTranscript,
@@ -368,8 +382,7 @@ class TranscriptViewModel(application: Application) : AndroidViewModel(applicati
         viewModelScope.launch {
             meetingRepository.getMeeting(id)?.let { existing ->
                 val newAliases = (existing.speakerAliases ?: emptyMap()).toMutableMap()
-                newAliases.remove(originalLabel)
-                newAliases[trimmed] = trimmed
+                newAliases[originalLabel] = trimmed  // update value, keep original key
                 meetingRepository.updateMeeting(
                     existing.copy(
                         finalTranscript = updatedFinalTranscript,

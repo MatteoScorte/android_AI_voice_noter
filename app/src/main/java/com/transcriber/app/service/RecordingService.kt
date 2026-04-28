@@ -235,7 +235,9 @@ class RecordingService : Service() {
 
         val stopIntent = Intent(this, RecordingService::class.java).apply { action = ACTION_STOP }
         val stopPi = PendingIntent.getService(this, 1, stopIntent, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
-        val openPi = PendingIntent.getActivity(this, 0, packageManager.getLaunchIntentForPackage(packageName), PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
+        val launchIntent = packageManager.getLaunchIntentForPackage(packageName)
+            ?: Intent(this, com.transcriber.app.MainActivity::class.java)
+        val openPi = PendingIntent.getActivity(this, 0, launchIntent, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
 
         val builder = NotificationCompat.Builder(this, CHANNEL_ID)
             .setContentTitle(if (isPaused) "Registrazione in pausa" else "Registrazione in corso")

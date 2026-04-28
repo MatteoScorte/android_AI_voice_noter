@@ -32,6 +32,8 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.unit.LayoutDirection
 import android.net.Uri
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.rememberPagerState
 import kotlinx.coroutines.launch
 import com.transcriber.app.data.FOLDER_ID_NONE
 import com.transcriber.app.data.FOLDER_PRESET_COLORS
@@ -64,10 +66,11 @@ fun HomeScreen(
     onAssignFolder: (meetingId: String, folderId: String?) -> Unit
 ) {
     var showDialog by rememberSaveable { mutableStateOf(false) }
-    var currentTab by rememberSaveable { mutableIntStateOf(0) }
+    var showInbox by rememberSaveable { mutableStateOf(false) }
     var meetingToDelete by rememberSaveable { mutableStateOf<String?>(null) }
     val drawerState = rememberDrawerState(DrawerValue.Closed)
     val scope = rememberCoroutineScope()
+    val pagerState = rememberPagerState(initialPage = 1, pageCount = { 3 })
 
     // Right-side drawer via RTL layout trick
     CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Rtl) {
@@ -120,6 +123,35 @@ fun HomeScreen(
                                 unselectedIconColor = TextGray
                             )
                         )
+                        NavigationDrawerItem(
+                            icon = {
+                                BadgedBox(
+                                    badge = {
+                                        if (uiState.inboxItems.isNotEmpty()) {
+                                            Badge(containerColor = AccentGreen, contentColor = DarkBackground) {
+                                                Text("${uiState.inboxItems.size}")
+                                            }
+                                        }
+                                    }
+                                ) {
+                                    Icon(Icons.Default.MoveToInbox, null)
+                                }
+                            },
+                            label = { Text("Inbox", fontWeight = FontWeight.Medium) },
+                            selected = showInbox,
+                            onClick = {
+                                scope.launch { drawerState.close() }
+                                showInbox = true
+                            },
+                            colors = NavigationDrawerItemDefaults.colors(
+                                unselectedContainerColor = Color.Transparent,
+                                unselectedTextColor = TextWhite,
+                                unselectedIconColor = TextGray,
+                                selectedContainerColor = AccentGreen.copy(alpha = 0.1f),
+                                selectedTextColor = AccentGreen,
+                                selectedIconColor = AccentGreen
+                            )
+                        )
                     }
                 }
             }
@@ -129,10 +161,27 @@ fun HomeScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Voxlog", fontWeight = FontWeight.SemiBold, fontSize = 20.sp, color = TextWhite) },
+                title = {
+                    Text(
+                        if (showInbox) "INBOX" else "Voxlog",
+                        fontWeight = FontWeight.SemiBold,
+                        fontSize = 20.sp,
+                        color = TextWhite,
+                        letterSpacing = if (showInbox) 2.sp else 0.sp
+                    )
+                },
+                navigationIcon = {
+                    if (showInbox) {
+                        IconButton(onClick = { showInbox = false }) {
+                            Icon(Icons.Default.ArrowBack, "Indietro", tint = TextWhite)
+                        }
+                    }
+                },
                 actions = {
-                    IconButton(onClick = { scope.launch { drawerState.open() } }) {
-                        Icon(Icons.Default.Menu, "Menu", tint = TextWhite)
+                    if (!showInbox) {
+                        IconButton(onClick = { scope.launch { drawerState.open() } }) {
+                            Icon(Icons.Default.Menu, "Menu", tint = TextWhite)
+                        }
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = DarkBackground)
@@ -145,10 +194,29 @@ fun HomeScreen(
                 tonalElevation = 0.dp
             ) {
                 NavigationBarItem(
+                    icon = { Icon(Icons.Default.Chat, contentDescription = "Chat") },
+                    label = { Text("CHAT", letterSpacing = 1.sp) },
+                    selected = !showInbox && pagerState.currentPage == 0,
+                    onClick = {
+                        showInbox = false
+                        scope.launch { pagerState.animateScrollToPage(0) }
+                    },
+                    colors = NavigationBarItemDefaults.colors(
+                        selectedIconColor = DarkBackground,
+                        selectedTextColor = AccentGreen,
+                        indicatorColor = AccentGreen,
+                        unselectedIconColor = TextGray,
+                        unselectedTextColor = TextGray
+                    )
+                )
+                NavigationBarItem(
                     icon = { Icon(Icons.Default.Mic, contentDescription = "Record") },
                     label = { Text("REC", letterSpacing = 1.sp) },
-                    selected = currentTab == 0,
-                    onClick = { currentTab = 0 },
+                    selected = !showInbox && pagerState.currentPage == 1,
+                    onClick = {
+                        showInbox = false
+                        scope.launch { pagerState.animateScrollToPage(1) }
+                    },
                     colors = NavigationBarItemDefaults.colors(
                         selectedIconColor = DarkBackground,
                         selectedTextColor = AccentGreen,
@@ -160,33 +228,11 @@ fun HomeScreen(
                 NavigationBarItem(
                     icon = { Icon(Icons.Default.History, contentDescription = "History") },
                     label = { Text("HISTORY", letterSpacing = 1.sp) },
-                    selected = currentTab == 1,
-                    onClick = { currentTab = 1 },
-                    colors = NavigationBarItemDefaults.colors(
-                        selectedIconColor = DarkBackground,
-                        selectedTextColor = AccentGreen,
-                        indicatorColor = AccentGreen,
-                        unselectedIconColor = TextGray,
-                        unselectedTextColor = TextGray
-                    )
-                )
-                NavigationBarItem(
-                    icon = {
-                        BadgedBox(
-                            badge = {
-                                if (uiState.inboxItems.isNotEmpty()) {
-                                    Badge(containerColor = AccentGreen, contentColor = DarkBackground) {
-                                        Text("${uiState.inboxItems.size}")
-                                    }
-                                }
-                            }
-                        ) {
-                            Icon(Icons.Default.MoveToInbox, contentDescription = "Inbox")
-                        }
+                    selected = !showInbox && pagerState.currentPage == 2,
+                    onClick = {
+                        showInbox = false
+                        scope.launch { pagerState.animateScrollToPage(2) }
                     },
-                    label = { Text("INBOX", letterSpacing = 1.sp) },
-                    selected = currentTab == 2,
-                    onClick = { currentTab = 2 },
                     colors = NavigationBarItemDefaults.colors(
                         selectedIconColor = DarkBackground,
                         selectedTextColor = AccentGreen,
@@ -200,30 +246,39 @@ fun HomeScreen(
         containerColor = DarkBackground
     ) { padding ->
         Box(modifier = Modifier.fillMaxSize().padding(padding)) {
-            when (currentTab) {
-                0 -> RecordTab(
-                    uiState = uiState,
-                    onStartClick = { showDialog = true },
-                    onPause = onPauseRecording,
-                    onResume = onResumeRecording,
-                    onStop = onStopRecording
-                )
-                1 -> HistoryTab(
-                    uiState = uiState,
-                    onMeetingClick = onMeetingClick,
-                    onDeleteMeeting = { meetingId -> meetingToDelete = meetingId },
-                    onSelectFolder = onSelectFolder,
-                    onCreateFolder = onCreateFolder,
-                    onUpdateFolder = onUpdateFolder,
-                    onDeleteFolder = onDeleteFolder,
-                    onAssignFolder = onAssignFolder
-                )
-                2 -> InboxTab(
+            if (showInbox) {
+                InboxTab(
                     items = uiState.inboxItems,
                     onImportFile = onImportFile,
                     onProcess = onProcessInboxItem,
                     onDelete = onDeleteInboxItem
                 )
+            } else {
+                HorizontalPager(
+                    state = pagerState,
+                    modifier = Modifier.fillMaxSize()
+                ) { page ->
+                    when (page) {
+                        0 -> ChatTab()
+                        1 -> RecordTab(
+                            uiState = uiState,
+                            onStartClick = { showDialog = true },
+                            onPause = onPauseRecording,
+                            onResume = onResumeRecording,
+                            onStop = onStopRecording
+                        )
+                        2 -> HistoryTab(
+                            uiState = uiState,
+                            onMeetingClick = onMeetingClick,
+                            onDeleteMeeting = { meetingId -> meetingToDelete = meetingId },
+                            onSelectFolder = onSelectFolder,
+                            onCreateFolder = onCreateFolder,
+                            onUpdateFolder = onUpdateFolder,
+                            onDeleteFolder = onDeleteFolder,
+                            onAssignFolder = onAssignFolder
+                        )
+                    }
+                }
             }
         }
     }
@@ -284,7 +339,7 @@ fun HomeScreen(
             onDismiss = { showDialog = false },
             onConfirm = { title, language, folderId ->
                 showDialog = false
-                currentTab = 0
+                scope.launch { pagerState.animateScrollToPage(1) }
                 onStartRecording(title, language, folderId)
             }
         )
@@ -372,6 +427,20 @@ fun RecordTab(
                     color = ErrorRed
                 )
             }
+        }
+    }
+}
+
+@Composable
+fun ChatTab() {
+    Box(
+        modifier = Modifier.fillMaxSize(),
+        contentAlignment = Alignment.Center
+    ) {
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            Icon(Icons.Default.Chat, null, tint = TextGray.copy(alpha = 0.3f), modifier = Modifier.size(64.dp))
+            Spacer(Modifier.height(16.dp))
+            Text("Chat coming soon", color = TextGray.copy(alpha = 0.6f), fontWeight = FontWeight.Medium)
         }
     }
 }
