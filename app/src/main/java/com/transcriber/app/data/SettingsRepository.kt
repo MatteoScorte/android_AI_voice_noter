@@ -25,6 +25,10 @@ class SettingsRepository(private val context: Context) {
         private val KEY_SUPABASE_SYNC_ENABLED = booleanPreferencesKey("supabase_sync_enabled")
         private val KEY_DEEPGRAM_API_KEY = stringPreferencesKey("deepgram_api_key")
         private val KEY_SELECTED_LANGUAGE = stringPreferencesKey("selected_language")
+        private val KEY_CANVA_CLIENT_ID       = stringPreferencesKey("canva_client_id")
+        private val KEY_CANVA_ACCESS_TOKEN    = stringPreferencesKey("canva_access_token")
+        private val KEY_CANVA_REFRESH_TOKEN   = stringPreferencesKey("canva_refresh_token")
+        private val KEY_CANVA_TOKEN_EXPIRY    = stringPreferencesKey("canva_token_expiry")
 
         // Pre-filled defaults for quick setup
         const val DEFAULT_SUPABASE_URL = "https://qsqmpqqqdkbeakgintvi.supabase.co"
@@ -58,6 +62,18 @@ class SettingsRepository(private val context: Context) {
     val selectedLanguage: Flow<String> = context.dataStore.data.map {
         it[KEY_SELECTED_LANGUAGE] ?: "it"
     }
+    val canvaClientId: Flow<String> = context.dataStore.data.map {
+        it[KEY_CANVA_CLIENT_ID] ?: ""
+    }
+    val canvaAccessToken: Flow<String> = context.dataStore.data.map {
+        it[KEY_CANVA_ACCESS_TOKEN] ?: ""
+    }
+    val canvaRefreshToken: Flow<String> = context.dataStore.data.map {
+        it[KEY_CANVA_REFRESH_TOKEN] ?: ""
+    }
+    val canvaTokenExpiry: Flow<Long> = context.dataStore.data.map {
+        it[KEY_CANVA_TOKEN_EXPIRY]?.toLongOrNull() ?: 0L
+    }
 
     suspend fun updateOpenRouterApiKey(key: String) {
         context.dataStore.edit { it[KEY_OPENROUTER_API_KEY] = key }
@@ -85,5 +101,17 @@ class SettingsRepository(private val context: Context) {
     }
     suspend fun updateSelectedLanguage(language: String) {
         context.dataStore.edit { it[KEY_SELECTED_LANGUAGE] = language }
+    }
+    suspend fun updateCanvaClientId(id: String) {
+        context.dataStore.edit { it[KEY_CANVA_CLIENT_ID] = id }
+    }
+    suspend fun updateCanvaAccessToken(token: String) {
+        context.dataStore.edit { it[KEY_CANVA_ACCESS_TOKEN] = token }
+    }
+    suspend fun updateCanvaRefreshToken(token: String) {
+        context.dataStore.edit { it[KEY_CANVA_REFRESH_TOKEN] = token }
+    }
+    suspend fun updateCanvaTokenExpiry(expiry: Long) {
+        context.dataStore.edit { it[KEY_CANVA_TOKEN_EXPIRY] = expiry.toString() }
     }
 }

@@ -56,12 +56,14 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import com.transcriber.app.data.ActionItem
+import com.transcriber.app.data.CanvaSkillEntity
 import com.transcriber.app.data.MeetingStatus
 import com.transcriber.app.data.OutlineItem
 import com.transcriber.app.data.PromptCategoryEntity
 import com.transcriber.app.ui.theme.*
 import com.transcriber.app.util.Phrase
 import com.transcriber.app.util.parseTimestampToMs
+import com.transcriber.app.viewmodel.CanvaExportStatus
 import com.transcriber.app.viewmodel.TranscriptUiState
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class, ExperimentalFoundationApi::class)
@@ -75,7 +77,9 @@ fun TranscriptScreen(
     onRenameSpeaker: (original: String, newName: String) -> Unit,
     onPlayPause: () -> Unit,
     onSeekTo: (Long) -> Unit,
-    onShareToCloud: () -> Unit
+    onShareToCloud: () -> Unit,
+    onExportToCanva: (CanvaSkillEntity) -> Unit,
+    onResetCanvaExport: () -> Unit
 ) {
     val context = LocalContext.current
     val focusManager = LocalFocusManager.current
@@ -87,6 +91,7 @@ fun TranscriptScreen(
     var showRawTranscript by rememberSaveable { mutableStateOf(false) }
     var showCategoryPicker by remember { mutableStateOf(false) }
     var showShareDialog by remember { mutableStateOf(false) }
+    var showCanvaSheet by remember { mutableStateOf(false) }
 
     LaunchedEffect(uiState.isEditingTitle) {
         if (uiState.isEditingTitle) {
@@ -152,6 +157,11 @@ fun TranscriptScreen(
                                 } else {
                                     Icon(Icons.Default.AutoAwesome, "Rigenera analisi", tint = AccentGreen)
                                 }
+                            }
+                        }
+                        if (uiState.status == MeetingStatus.COMPLETED && uiState.isCanvaConnected) {
+                            IconButton(onClick = { showCanvaSheet = true }) {
+                                Icon(Icons.Default.Slideshow, "Esporta su Canva", tint = AccentGreen)
                             }
                         }
                         val hasShareableContent = uiState.finalTranscript.isNotBlank() ||
@@ -588,6 +598,163 @@ fun TranscriptScreen(
                 }
             )
         }
+    }
+
+    // ── Canva export sheet ────────────────────────────────────────────────────
+    if (showCanvaSheet) {
+        ModalBottomSheet(
+            onDismissRequest = { showCanvaSheet = false },
+            sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
+            containerColor = DarkSurface
+        ) {
+            CanvaExportSheet(
+                skills = uiState.canvaSkills,
+                exportStatus = uiState.canvaExportStatus,
+                designUrl = uiState.canvaDesignUrl,
+                exportError = uiState.canvaExportError,
+                onExport = { skill ->
+                    onExportToCanva(skill)
+                },
+                onDismiss = {
+                    showCanvaSheet = false
+                    onResetCanvaExport()
+                }
+            )
+        }
+    }
+}
+
+// ── Canva Export Sheet ────────────────────────────────────────────────────────
+
+@Composable
+private fun CanvaExportSheet(
+    skills: List<CanvaSkillEntity>,
+    exportStatus: CanvaExportStatus,
+    designUrl: String,
+    exportError: String,
+    onExport: (CanvaSkillEntity) -> Unit,
+    onDismiss: () -> Unit
+) {
+    val context = LocalContext.current
+
+    Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 20.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Icon(Icons.Default.Slideshow, null, tint = AccentGreen, modifier = Modifier.size(18.dp))
+            Spacer(Modifier.width(8.dp))
+            Text(
+                "ESPORTA SU CANVA",
+                style = MaterialTheme.typography.labelMedium,
+                color = AccentGreen,
+                fontWeight = FontWeight.Bold,
+                letterSpacing = 1.5.sp
+            )
+        }
+        Spacer(Modifier.height(20.dp))
+
+        when (exportStatus) {
+            CanvaExportStatus.IDLE, CanvaExportStatus.ERROR -> {
+                if (exportError.isNotBlank()) {
+                    Text(
+                        exportError,
+                        color = ErrorRed,
+                        style = MaterialTheme.typography.bodySmall,
+                        modifier = Modifier.padding(bottom = 16.dp)
+                    )
+                }
+                Text(
+                    "Scegli una skill:",
+                    color = TextGray,
+                    style = MaterialTheme.typography.bodySmall,
+                    modifier = Modifier.padding(bottom = 12.dp)
+                )
+                skills.forEach { skill ->
+                    val accent = parseHexColor(skill.colorHex)
+                    Card(
+                        modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp).clickable { onExport(skill) },
+                        colors = CardDefaults.cardColors(containerColor = Color.Transparent),
+                        border = BorderStroke(1.dp, DarkSurfaceVariant),
+                        shape = RoundedCornerShape(10.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Box(
+                                modifier = Modifier.size(36.dp).clip(CircleShape).background(accent.copy(alpha = 0.15f)),
+                                contentAlignment = Alignment.Center
+                            ) { Text(skill.emoji, fontSize = 16.sp) }
+                            Spacer(Modifier.width(12.dp))
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(skill.name, color = TextWhite, fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
+                                Text(
+                                    skill.outputType,
+                                    color = accent,
+                                    style = MaterialTheme.typography.labelSmall
+                                )
+                            }
+                        }
+                    }
+                }
+                Spacer(Modifier.height(20.dp))
+                OutlinedButton(
+                    onClick = onDismiss,
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = ButtonDefaults.outlinedButtonColors(contentColor = TextGray),
+                    border = BorderStroke(1.dp, DarkSurfaceVariant),
+                    shape = RoundedCornerShape(8.dp)
+                ) { Text("Annulla") }
+            }
+
+            CanvaExportStatus.GENERATING, CanvaExportStatus.UPLOADING -> {
+                val stepText = if (exportStatus == CanvaExportStatus.GENERATING)
+                    "Generazione contenuto slide con AI..." else "Upload su Canva in corso..."
+                Box(
+                    modifier = Modifier.fillMaxWidth().padding(vertical = 32.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        CircularProgressIndicator(color = AccentGreen, modifier = Modifier.size(40.dp))
+                        Spacer(Modifier.height(16.dp))
+                        Text(stepText, color = TextGray, style = MaterialTheme.typography.bodySmall)
+                    }
+                }
+            }
+
+            CanvaExportStatus.SUCCESS -> {
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    Icon(Icons.Default.CheckCircle, null, tint = AccentGreen, modifier = Modifier.size(48.dp))
+                    Spacer(Modifier.height(12.dp))
+                    Text("Presentazione creata!", color = TextWhite, fontWeight = FontWeight.SemiBold)
+                    Spacer(Modifier.height(24.dp))
+                    Button(
+                        onClick = {
+                            val intent = android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse(designUrl))
+                            context.startActivity(intent)
+                        },
+                        colors = ButtonDefaults.buttonColors(containerColor = AccentGreen, contentColor = DarkBackground),
+                        shape = RoundedCornerShape(8.dp),
+                        modifier = Modifier.fillMaxWidth().height(52.dp)
+                    ) {
+                        Icon(Icons.Default.OpenInNew, null, modifier = Modifier.size(18.dp))
+                        Spacer(Modifier.width(8.dp))
+                        Text("APRI SU CANVA", fontWeight = FontWeight.Bold, letterSpacing = 1.sp)
+                    }
+                    Spacer(Modifier.height(12.dp))
+                    OutlinedButton(
+                        onClick = onDismiss,
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = ButtonDefaults.outlinedButtonColors(contentColor = TextGray),
+                        border = BorderStroke(1.dp, DarkSurfaceVariant),
+                        shape = RoundedCornerShape(8.dp)
+                    ) { Text("Chiudi") }
+                    Spacer(Modifier.height(8.dp))
+                }
+            }
+        }
+        Spacer(Modifier.height(16.dp))
     }
 }
 

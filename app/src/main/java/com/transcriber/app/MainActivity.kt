@@ -14,7 +14,10 @@ import androidx.compose.material3.Surface
 import androidx.compose.ui.Modifier
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.lifecycleScope
+import com.transcriber.app.api.CanvaApiClient
+import kotlinx.coroutines.flow.first
 import com.transcriber.app.data.InboxRepository
+import com.transcriber.app.data.SettingsRepository
 import com.transcriber.app.ui.theme.DarkBackground
 import kotlinx.coroutines.launch
 
@@ -63,6 +66,20 @@ class MainActivity : ComponentActivity() {
      * launchers, or future code that calls handleIncomingIntent again) is idempotent.
      */
     private fun handleIncomingIntent(intent: Intent?) {
+        // Canva OAuth callback
+        val deepLinkUri = intent?.data
+        if (intent?.action == Intent.ACTION_VIEW &&
+            deepLinkUri?.scheme == "com.transcriber.app" && deepLinkUri.host == "canva"
+        ) {
+            val code = deepLinkUri.getQueryParameter("code") ?: return
+            setIntent(Intent())
+            lifecycleScope.launch {
+                val clientId = SettingsRepository(this@MainActivity).canvaClientId.first()
+                CanvaApiClient(this@MainActivity).handleOAuthCallback(code, clientId)
+            }
+            return
+        }
+
         if (intent?.action != Intent.ACTION_SEND) return
         if (intent.type?.startsWith("audio/") != true) return
 

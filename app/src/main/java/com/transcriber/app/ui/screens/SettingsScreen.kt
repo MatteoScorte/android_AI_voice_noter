@@ -36,7 +36,10 @@ fun SettingsScreen(
     onUpdateSupabaseKey: (String) -> Unit,
     onUpdateSyncEnabled: (Boolean) -> Unit,
     onSave: () -> Unit,
-    onSyncNow: () -> Unit
+    onSyncNow: () -> Unit,
+    onUpdateCanvaClientId: (String) -> Unit,
+    onCanvaConnect: () -> Unit,
+    onCanvaDisconnect: () -> Unit
 ) {
     var modelExpanded by remember { mutableStateOf(false) }
 
@@ -198,6 +201,65 @@ fun SettingsScreen(
                     Text(uiState.syncStatus, color = AccentGreen, style = MaterialTheme.typography.bodySmall)
                 }
             }
+            Spacer(Modifier.height(32.dp))
+
+            // ── CANVA ──
+            SectionTitle("CANVA", Icons.Default.Brush)
+            Spacer(Modifier.height(16.dp))
+            OutlinedTextField(
+                value = uiState.canvaClientId,
+                onValueChange = onUpdateCanvaClientId,
+                label = { Text("Client ID") },
+                placeholder = { Text("OC-...", color = TextGray.copy(alpha = 0.5f)) },
+                modifier = Modifier.fillMaxWidth(),
+                colors = textFieldColors(), shape = RoundedCornerShape(8.dp), singleLine = true
+            )
+            Spacer(Modifier.height(12.dp))
+            // Connection status + button
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Box(
+                        modifier = Modifier
+                            .size(8.dp)
+                            .background(
+                                if (uiState.isCanvaConnected) AccentGreen else TextGray.copy(alpha = 0.4f),
+                                androidx.compose.foundation.shape.CircleShape
+                            )
+                    )
+                    Spacer(Modifier.width(8.dp))
+                    Text(
+                        if (uiState.isCanvaConnected) "Connesso" else "Non connesso",
+                        color = if (uiState.isCanvaConnected) AccentGreen else TextGray,
+                        style = MaterialTheme.typography.bodySmall
+                    )
+                }
+                if (uiState.isCanvaConnected) {
+                    OutlinedButton(
+                        onClick = onCanvaDisconnect,
+                        colors = ButtonDefaults.outlinedButtonColors(contentColor = ErrorRed),
+                        border = BorderStroke(1.dp, ErrorRed.copy(alpha = 0.5f)),
+                        shape = RoundedCornerShape(8.dp)
+                    ) { Text("Disconnetti", fontSize = 12.sp) }
+                } else {
+                    Button(
+                        onClick = onCanvaConnect,
+                        enabled = uiState.canvaClientId.isNotBlank(),
+                        colors = ButtonDefaults.buttonColors(containerColor = AccentGreen, contentColor = DarkBackground),
+                        shape = RoundedCornerShape(8.dp)
+                    ) { Text("Connetti", fontSize = 12.sp, fontWeight = FontWeight.Bold) }
+                }
+            }
+            Spacer(Modifier.height(6.dp))
+            Text(
+                "Ottieni il Client ID su canva.dev → Applicazioni",
+                color = TextGray.copy(alpha = 0.5f),
+                style = MaterialTheme.typography.labelSmall
+            )
+
             Spacer(Modifier.height(48.dp))
 
             // ── SAVE BUTTON ──

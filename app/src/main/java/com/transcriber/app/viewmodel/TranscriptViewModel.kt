@@ -9,9 +9,14 @@ import android.os.IBinder
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.transcriber.app.api.CanvaApiClient
+import com.transcriber.app.api.CanvaPptxGenerator
+import com.transcriber.app.api.CanvaSlideGenerator
 import com.transcriber.app.api.DeepgramClient
 import com.transcriber.app.api.TranscriptProcessor
 import com.transcriber.app.data.ActionItem
+import com.transcriber.app.data.CanvaSkillEntity
+import com.transcriber.app.data.CanvaSkillRepository
 import com.transcriber.app.data.MeetingRepository
 import com.transcriber.app.data.MeetingStatus
 import com.transcriber.app.data.OutlineItem
@@ -71,8 +76,16 @@ data class TranscriptUiState(
     val categoryId: Int = 0,
     val categoryName: String = "",
     val categoryEmoji: String = "",
-    val categoryColorHex: String = ""
+    val categoryColorHex: String = "",
+    // Canva export
+    val canvaSkills: List<CanvaSkillEntity> = emptyList(),
+    val isCanvaConnected: Boolean = false,
+    val canvaExportStatus: CanvaExportStatus = CanvaExportStatus.IDLE,
+    val canvaDesignUrl: String = "",
+    val canvaExportError: String = ""
 )
+
+enum class CanvaExportStatus { IDLE, GENERATING, UPLOADING, SUCCESS, ERROR }
 
 class TranscriptViewModel(application: Application) : AndroidViewModel(application) {
 
@@ -89,6 +102,7 @@ class TranscriptViewModel(application: Application) : AndroidViewModel(applicati
     private val meetingRepository = MeetingRepository(application)
     private val settingsRepository = SettingsRepository(application)
     private val promptCategoryRepository = PromptCategoryRepository(application)
+    private val canvaSkillRepository = CanvaSkillRepository(application)
     private val deepgramClient = DeepgramClient()
     private val transcriptProcessor = TranscriptProcessor()
 
@@ -98,6 +112,16 @@ class TranscriptViewModel(application: Application) : AndroidViewModel(applicati
         viewModelScope.launch {
             promptCategoryRepository.allCategories.collect { cats ->
                 _uiState.value = _uiState.value.copy(categories = cats)
+            }
+        }
+        viewModelScope.launch {
+            canvaSkillRepository.allSkills.collect { skills ->
+                _uiState.value = _uiState.value.copy(canvaSkills = skills)
+            }
+        }
+        viewModelScope.launch {
+            settingsRepository.canvaAccessToken.collect { token ->
+                _uiState.value = _uiState.value.copy(isCanvaConnected = token.isNotBlank())
             }
         }
     }
@@ -580,6 +604,83 @@ class TranscriptViewModel(application: Application) : AndroidViewModel(applicati
                 activeProcessingIds.remove(meetingId)
             }
         }
+    }
+
+    // ── Canva export ──────────────────────────────────────────────────────────
+
+    fun exportToCanva(skill: CanvaSkillEntity) {
+        val state = _uiState.value
+        val transcript = state.finalTranscript.ifBlank { state.rawTranscript }
+        if (transcript.isBlank()) return
+
+        _uiState.value = state.copy(
+            canvaExportStatus = CanvaExportStatus.GENERATING,
+            canvaExportError  = "",
+            canvaDesignUrl    = ""
+        )
+
+        viewModelScope.launch {
+            try {
+                val openRouterKey = settingsRepository.openRouterApiKey.first()
+                val model         = settingsRepository.selectedModel.first()
+                val clientId      = settingsRepository.canvaClientId.first()
+
+                val slidesResult = CanvaSlideGenerator().generateSlides(
+                    apiKey        = openRouterKey,
+                    model         = model,
+                    transcript    = transcript,
+                    skillPrompt   = skill.agentPrompt,
+                    meetingTitle  = state.title
+                )
+                if (slidesResult.isFailure) {
+                    _uiState.value = _uiState.value.copy(
+                        canvaExportStatus = CanvaExportStatus.ERROR,
+                        canvaExportError  = slidesResult.exceptionOrNull()?.message ?: "Errore generazione"
+                    )
+                    return@launch
+                }
+
+                _uiState.value = _uiState.value.copy(canvaExportStatus = CanvaExportStatus.UPLOADING)
+
+                val pptxBytes   = CanvaPptxGenerator.generate(slidesResult.getOrThrow())
+                val canvaClient = CanvaApiClient(getApplication())
+                val token       = canvaClient.getValidToken()
+                if (token == null) {
+                    _uiState.value = _uiState.value.copy(
+                        canvaExportStatus = CanvaExportStatus.ERROR,
+                        canvaExportError  = "Token Canva scaduto. Reconnettiti da Impostazioni."
+                    )
+                    return@launch
+                }
+
+                val importResult = canvaClient.importDesign(token, pptxBytes, state.title)
+                if (importResult.isFailure) {
+                    _uiState.value = _uiState.value.copy(
+                        canvaExportStatus = CanvaExportStatus.ERROR,
+                        canvaExportError  = importResult.exceptionOrNull()?.message ?: "Errore upload Canva"
+                    )
+                    return@launch
+                }
+
+                _uiState.value = _uiState.value.copy(
+                    canvaExportStatus = CanvaExportStatus.SUCCESS,
+                    canvaDesignUrl    = importResult.getOrThrow()
+                )
+            } catch (e: Exception) {
+                _uiState.value = _uiState.value.copy(
+                    canvaExportStatus = CanvaExportStatus.ERROR,
+                    canvaExportError  = e.message ?: "Errore sconosciuto"
+                )
+            }
+        }
+    }
+
+    fun resetCanvaExport() {
+        _uiState.value = _uiState.value.copy(
+            canvaExportStatus = CanvaExportStatus.IDLE,
+            canvaDesignUrl    = "",
+            canvaExportError  = ""
+        )
     }
 
     private suspend fun onError(meetingId: String, message: String) {

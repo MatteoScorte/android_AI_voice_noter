@@ -84,13 +84,16 @@ fun TranscriberApp() {
                     onRenameSpeaker = { original, newName -> viewModel.renameSpeaker(original, newName) },
                     onPlayPause = { viewModel.playPause() },
                     onSeekTo = { ms -> viewModel.seekTo(ms) },
-                    onShareToCloud = { viewModel.shareMeeting() }
+                    onShareToCloud = { viewModel.shareMeeting() },
+                    onExportToCanva = { skill -> viewModel.exportToCanva(skill) },
+                    onResetCanvaExport = { viewModel.resetCanvaExport() }
                 )
             }
 
             composable("settings") {
                 val viewModel: SettingsViewModel = viewModel()
                 val uiState by viewModel.uiState.collectAsState()
+                val context = androidx.compose.ui.platform.LocalContext.current
                 SettingsScreen(
                     uiState = uiState,
                     onBack = { navController.popBackStack() },
@@ -102,7 +105,10 @@ fun TranscriberApp() {
                     onUpdateSupabaseKey = { viewModel.updateSupabaseAnonKey(it) },
                     onUpdateSyncEnabled = { viewModel.updateSupabaseSyncEnabled(it) },
                     onSave = { viewModel.saveSettings() },
-                    onSyncNow = { viewModel.syncNow() }
+                    onSyncNow = { viewModel.syncNow() },
+                    onUpdateCanvaClientId = { viewModel.updateCanvaClientId(it) },
+                    onCanvaConnect = { viewModel.startCanvaAuth(context) },
+                    onCanvaDisconnect = { viewModel.disconnectCanva() }
                 )
             }
 

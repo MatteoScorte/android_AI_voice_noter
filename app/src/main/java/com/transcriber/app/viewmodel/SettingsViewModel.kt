@@ -1,9 +1,11 @@
 package com.transcriber.app.viewmodel
 
 import android.app.Application
+import android.content.Context
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.transcriber.app.api.AVAILABLE_MODELS
+import com.transcriber.app.api.CanvaApiClient
 import com.transcriber.app.api.LlmModel
 import com.transcriber.app.data.MeetingRepository
 import com.transcriber.app.data.SettingsRepository
@@ -26,7 +28,9 @@ data class SettingsUiState(
     val deepgramApiKey: String = "",
     val selectedLanguage: String = "it",
     val isSaved: Boolean = false,
-    val syncStatus: String = ""
+    val syncStatus: String = "",
+    val canvaClientId: String = "",
+    val isCanvaConnected: Boolean = false
 )
 
 class SettingsViewModel(application: Application) : AndroidViewModel(application) {
@@ -48,12 +52,21 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
             val supaEnabled = repo.supabaseSyncEnabled.first()
             val dgKey = repo.deepgramApiKey.first()
             val lang = repo.selectedLanguage.first()
+            val canvaId = repo.canvaClientId.first()
+            val canvaToken = repo.canvaAccessToken.first()
             _uiState.value = SettingsUiState(
                 openRouterApiKey = or, whisperApiKey = w, selectedModel = m,
                 whisperEndpoint = e, supabaseUrl = supaUrl, supabaseAnonKey = supaKey,
-                supabaseSyncEnabled = supaEnabled, deepgramApiKey = dgKey, selectedLanguage = lang, 
-                availableModels = AVAILABLE_MODELS
+                supabaseSyncEnabled = supaEnabled, deepgramApiKey = dgKey, selectedLanguage = lang,
+                availableModels = AVAILABLE_MODELS,
+                canvaClientId = canvaId, isCanvaConnected = canvaToken.isNotBlank()
             )
+        }
+        // Observe Canva token changes (e.g. after OAuth callback returns)
+        viewModelScope.launch {
+            repo.canvaAccessToken.collect { token ->
+                _uiState.value = _uiState.value.copy(isCanvaConnected = token.isNotBlank())
+            }
         }
     }
 
@@ -66,6 +79,20 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
     fun updateSupabaseSyncEnabled(enabled: Boolean) { _uiState.value = _uiState.value.copy(supabaseSyncEnabled = enabled, isSaved = false) }
     fun updateDeepgramApiKey(key: String) { _uiState.value = _uiState.value.copy(deepgramApiKey = key, isSaved = false) }
     fun updateSelectedLanguage(lang: String) { _uiState.value = _uiState.value.copy(selectedLanguage = lang, isSaved = false) }
+    fun updateCanvaClientId(id: String) { _uiState.value = _uiState.value.copy(canvaClientId = id, isSaved = false) }
+
+    fun startCanvaAuth(context: Context) {
+        val clientId = _uiState.value.canvaClientId.trim()
+        if (clientId.isBlank()) return
+        viewModelScope.launch { repo.updateCanvaClientId(clientId) }
+        CanvaApiClient.openAuthTab(context, clientId)
+    }
+
+    fun disconnectCanva() {
+        viewModelScope.launch {
+            CanvaApiClient(getApplication()).clearTokens()
+        }
+    }
 
     fun saveSettings() {
         viewModelScope.launch {
@@ -79,6 +106,7 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
             repo.updateSupabaseSyncEnabled(s.supabaseSyncEnabled)
             repo.updateDeepgramApiKey(s.deepgramApiKey)
             repo.updateSelectedLanguage(s.selectedLanguage)
+            repo.updateCanvaClientId(s.canvaClientId)
             _uiState.value = _uiState.value.copy(isSaved = true, syncStatus = "")
         }
     }

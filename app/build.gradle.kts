@@ -78,6 +78,9 @@ dependencies {
     implementation("com.squareup.okhttp3:okhttp:4.12.0")
     implementation("com.google.code.gson:gson:2.11.0")
 
+    // Chrome Custom Tab (Canva OAuth)
+    implementation("androidx.browser:browser:1.8.0")
+
     // Media (MediaSessionCompat + NotificationCompat.MediaStyle for background playback)
     implementation("androidx.media:media:1.7.0")
 
