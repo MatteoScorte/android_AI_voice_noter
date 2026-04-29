@@ -5,7 +5,6 @@ import android.content.Context
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.transcriber.app.api.AVAILABLE_MODELS
-import com.transcriber.app.api.CanvaApiClient
 import com.transcriber.app.api.LlmModel
 import com.transcriber.app.data.MeetingRepository
 import com.transcriber.app.data.SettingsRepository
