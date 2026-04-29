@@ -24,6 +24,7 @@ import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -258,6 +259,18 @@ fun HomeScreen(
                 )
             }
         },
+        floatingActionButton = {
+            if (!showInbox && pagerState.currentPage == 0) {
+                FloatingActionButton(
+                    onClick = { /* TODO: open new chat */ },
+                    containerColor = AccentGreen,
+                    contentColor = DarkBackground,
+                    shape = CircleShape
+                ) {
+                    Icon(Icons.Default.Add, "Nuova chat", modifier = Modifier.size(24.dp))
+                }
+            }
+        },
         containerColor = DarkBackground
     ) { padding ->
         Box(modifier = Modifier.fillMaxSize().padding(padding)) {
@@ -290,7 +303,8 @@ fun HomeScreen(
                             onCreateFolder = onCreateFolder,
                             onUpdateFolder = onUpdateFolder,
                             onDeleteFolder = onDeleteFolder,
-                            onAssignFolder = onAssignFolder
+                            onAssignFolder = onAssignFolder,
+                            onChatWithMeeting = { scope.launch { pagerState.animateScrollToPage(0) } }
                         )
                     }
                 }
@@ -452,10 +466,55 @@ fun ChatTab() {
         modifier = Modifier.fillMaxSize(),
         contentAlignment = Alignment.Center
     ) {
-        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            Icon(Icons.Default.Chat, null, tint = TextGray.copy(alpha = 0.3f), modifier = Modifier.size(64.dp))
-            Spacer(Modifier.height(16.dp))
-            Text("Chat coming soon", color = TextGray.copy(alpha = 0.6f), fontWeight = FontWeight.Medium)
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            modifier = Modifier.padding(horizontal = 48.dp)
+        ) {
+            Icon(
+                Icons.Default.ChatBubbleOutline, null,
+                tint = TextGray.copy(alpha = 0.25f),
+                modifier = Modifier.size(64.dp)
+            )
+            Spacer(Modifier.height(20.dp))
+            Text(
+                "Nessuna chat",
+                color = TextWhite.copy(alpha = 0.7f),
+                fontWeight = FontWeight.SemiBold,
+                fontSize = 18.sp
+            )
+            Spacer(Modifier.height(10.dp))
+            Text(
+                "Tocca + per creare una nuova chat.\nPuoi usare il trascritto di un audio elaborato come contesto.",
+                color = TextGray.copy(alpha = 0.5f),
+                style = MaterialTheme.typography.bodySmall,
+                textAlign = TextAlign.Center,
+                lineHeight = 18.sp
+            )
+            Spacer(Modifier.height(20.dp))
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier
+                    .clip(RoundedCornerShape(20.dp))
+                    .background(AccentGreen.copy(alpha = 0.08f))
+                    .border(1.dp, AccentGreen.copy(alpha = 0.2f), RoundedCornerShape(20.dp))
+                    .padding(horizontal = 12.dp, vertical = 6.dp)
+            ) {
+                Icon(Icons.Default.Mic, null, tint = AccentGreen.copy(alpha = 0.6f), modifier = Modifier.size(14.dp))
+                Spacer(Modifier.width(6.dp))
+                Text(
+                    "Nella cronologia: tocca",
+                    color = TextGray.copy(alpha = 0.6f),
+                    style = MaterialTheme.typography.labelSmall
+                )
+                Spacer(Modifier.width(4.dp))
+                Icon(Icons.Default.Chat, null, tint = AccentGreen.copy(alpha = 0.8f), modifier = Modifier.size(13.dp))
+                Spacer(Modifier.width(4.dp))
+                Text(
+                    "sugli audio elaborati",
+                    color = TextGray.copy(alpha = 0.6f),
+                    style = MaterialTheme.typography.labelSmall
+                )
+            }
         }
     }
 }
@@ -526,7 +585,8 @@ fun HistoryTab(
     onCreateFolder: (name: String, colorHex: String) -> Unit,
     onUpdateFolder: (id: String, newName: String, colorHex: String) -> Unit,
     onDeleteFolder: (id: String) -> Unit,
-    onAssignFolder: (meetingId: String, folderId: String?) -> Unit
+    onAssignFolder: (meetingId: String, folderId: String?) -> Unit,
+    onChatWithMeeting: (String) -> Unit = {}
 ) {
     var showCreateFolder by remember { mutableStateOf(false) }
     var folderToManage by remember { mutableStateOf<MeetingFolder?>(null) }
@@ -590,7 +650,9 @@ fun HistoryTab(
                         folder = folder,
                         onClick = { onMeetingClick(meeting.id) },
                         onDelete = { onDeleteMeeting(meeting.id) },
-                        onChangeFolder = { meetingToAssign = meeting.id }
+                        onChangeFolder = { meetingToAssign = meeting.id },
+                        onChatClick = if (meeting.status == MeetingStatus.COMPLETED)
+                            ({ onChatWithMeeting(meeting.id) }) else null
                     )
                 }
                 item { Spacer(Modifier.height(24.dp)) }
@@ -792,7 +854,8 @@ private fun MeetingCard(
     folder: MeetingFolder?,
     onClick: () -> Unit,
     onDelete: () -> Unit,
-    onChangeFolder: () -> Unit
+    onChangeFolder: () -> Unit,
+    onChatClick: (() -> Unit)? = null
 ) {
     Card(
         modifier = Modifier.fillMaxWidth().clickable(onClick = onClick),
@@ -861,6 +924,11 @@ private fun MeetingCard(
             if (meeting.isShared) {
                 Icon(Icons.Default.CloudDone, "Condiviso", tint = AccentTeal, modifier = Modifier.size(18.dp))
                 Spacer(Modifier.width(4.dp))
+            }
+            if (onChatClick != null) {
+                IconButton(onClick = onChatClick, modifier = Modifier.size(36.dp)) {
+                    Icon(Icons.Default.Chat, "Chat", tint = AccentGreen.copy(alpha = 0.8f), modifier = Modifier.size(20.dp))
+                }
             }
             IconButton(onClick = onDelete, modifier = Modifier.size(36.dp)) {
                 Icon(Icons.Default.DeleteOutline, "Delete", tint = TextGray, modifier = Modifier.size(20.dp))
