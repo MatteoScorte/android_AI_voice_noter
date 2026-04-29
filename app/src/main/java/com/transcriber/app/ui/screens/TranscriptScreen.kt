@@ -159,9 +159,9 @@ fun TranscriptScreen(
                                 }
                             }
                         }
-                        if (uiState.status == MeetingStatus.COMPLETED && uiState.isCanvaConnected) {
+                        if (uiState.status == MeetingStatus.COMPLETED) {
                             IconButton(onClick = { showCanvaSheet = true }) {
-                                Icon(Icons.Default.Slideshow, "Esporta su Canva", tint = AccentGreen)
+                                Icon(Icons.Default.Slideshow, "Generate Presentation", tint = AccentGreen)
                             }
                         }
                         val hasShareableContent = uiState.finalTranscript.isNotBlank() ||
