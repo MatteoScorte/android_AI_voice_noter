@@ -19,6 +19,7 @@ import java.io.IOException
 import java.security.MessageDigest
 import java.security.SecureRandom
 import java.util.concurrent.TimeUnit
+import android.util.Base64 as AndroidBase64
 
 class CanvaApiClient(private val app: Context) {
 
@@ -74,9 +75,10 @@ class CanvaApiClient(private val app: Context) {
     // ── OAuth ─────────────────────────────────────────────────────────────────
 
     suspend fun handleOAuthCallback(code: String, clientId: String): Boolean {
-        val verifier = pendingCodeVerifier ?: return false
+        val verifier      = pendingCodeVerifier ?: return false
         pendingCodeVerifier = null
-        val result = exchangeCode(code, verifier, clientId)
+        val clientSecret  = settingsRepo.canvaClientSecret.first()
+        val result = exchangeCode(code, verifier, clientId, clientSecret)
         if (result.isSuccess) {
             val t = result.getOrThrow()
             settingsRepo.updateCanvaAccessToken(t.accessToken)
@@ -88,29 +90,34 @@ class CanvaApiClient(private val app: Context) {
     }
 
     private suspend fun exchangeCode(
-        code: String, verifier: String, clientId: String
+        code: String, verifier: String, clientId: String, clientSecret: String
     ): Result<TokenResponse> = withContext(Dispatchers.IO) {
         val body = "grant_type=authorization_code" +
             "&code=${Uri.encode(code)}" +
-            "&client_id=${Uri.encode(clientId)}" +
-            "&redirect_uri=${Uri.encode(REDIRECT_URI)}" +
-            "&code_verifier=${Uri.encode(verifier)}"
-        postForm(TOKEN_URL, body, null)
+            "&code_verifier=${Uri.encode(verifier)}" +
+            "&redirect_uri=${Uri.encode(REDIRECT_URI)}"
+        postForm(TOKEN_URL, body, basicAuth(clientId, clientSecret))
     }
 
-    private suspend fun refreshToken(refreshToken: String, clientId: String): Result<TokenResponse> =
+    private suspend fun refreshToken(refreshToken: String, clientId: String, clientSecret: String): Result<TokenResponse> =
         withContext(Dispatchers.IO) {
-            val body = "grant_type=refresh_token" +
-                "&refresh_token=${Uri.encode(refreshToken)}" +
-                "&client_id=${Uri.encode(clientId)}"
-            postForm(TOKEN_URL, body, null)
+            val body = "grant_type=refresh_token&refresh_token=${Uri.encode(refreshToken)}"
+            postForm(TOKEN_URL, body, basicAuth(clientId, clientSecret))
         }
 
-    private fun postForm(url: String, formBody: String, bearerToken: String?): Result<TokenResponse> {
+    private fun basicAuth(clientId: String, clientSecret: String): String {
+        val credentials = "$clientId:$clientSecret"
+        return "Basic " + AndroidBase64.encodeToString(
+            credentials.toByteArray(Charsets.UTF_8),
+            AndroidBase64.NO_WRAP
+        )
+    }
+
+    private fun postForm(url: String, formBody: String, authHeader: String?): Result<TokenResponse> {
         val request = Request.Builder()
             .url(url)
             .post(formBody.toRequestBody("application/x-www-form-urlencoded".toMediaType()))
-            .apply { if (bearerToken != null) addHeader("Authorization", "Bearer $bearerToken") }
+            .apply { if (authHeader != null) addHeader("Authorization", authHeader) }
             .build()
         return try {
             val response = http.newCall(request).execute()
@@ -131,11 +138,12 @@ class CanvaApiClient(private val app: Context) {
         val now        = System.currentTimeMillis() / 1000
         if (expiry > now) return accessToken
 
-        val refresh    = settingsRepo.canvaRefreshToken.first()
-        val clientId   = settingsRepo.canvaClientId.first()
-        if (refresh.isBlank() || clientId.isBlank()) return null
+        val refresh      = settingsRepo.canvaRefreshToken.first()
+        val clientId     = settingsRepo.canvaClientId.first()
+        val clientSecret = settingsRepo.canvaClientSecret.first()
+        if (refresh.isBlank() || clientId.isBlank() || clientSecret.isBlank()) return null
 
-        val result = refreshToken(refresh, clientId)
+        val result = refreshToken(refresh, clientId, clientSecret)
         if (result.isFailure) return null
         val t = result.getOrThrow()
         settingsRepo.updateCanvaAccessToken(t.accessToken)

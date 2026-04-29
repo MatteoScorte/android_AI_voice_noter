@@ -26,6 +26,7 @@ class SettingsRepository(private val context: Context) {
         private val KEY_DEEPGRAM_API_KEY = stringPreferencesKey("deepgram_api_key")
         private val KEY_SELECTED_LANGUAGE = stringPreferencesKey("selected_language")
         private val KEY_CANVA_CLIENT_ID       = stringPreferencesKey("canva_client_id")
+        private val KEY_CANVA_CLIENT_SECRET   = stringPreferencesKey("canva_client_secret")
         private val KEY_CANVA_ACCESS_TOKEN    = stringPreferencesKey("canva_access_token")
         private val KEY_CANVA_REFRESH_TOKEN   = stringPreferencesKey("canva_refresh_token")
         private val KEY_CANVA_TOKEN_EXPIRY    = stringPreferencesKey("canva_token_expiry")
@@ -64,6 +65,9 @@ class SettingsRepository(private val context: Context) {
     }
     val canvaClientId: Flow<String> = context.dataStore.data.map {
         it[KEY_CANVA_CLIENT_ID] ?: ""
+    }
+    val canvaClientSecret: Flow<String> = context.dataStore.data.map {
+        it[KEY_CANVA_CLIENT_SECRET] ?: ""
     }
     val canvaAccessToken: Flow<String> = context.dataStore.data.map {
         it[KEY_CANVA_ACCESS_TOKEN] ?: ""
@@ -104,6 +108,9 @@ class SettingsRepository(private val context: Context) {
     }
     suspend fun updateCanvaClientId(id: String) {
         context.dataStore.edit { it[KEY_CANVA_CLIENT_ID] = id }
+    }
+    suspend fun updateCanvaClientSecret(secret: String) {
+        context.dataStore.edit { it[KEY_CANVA_CLIENT_SECRET] = secret }
     }
     suspend fun updateCanvaAccessToken(token: String) {
         context.dataStore.edit { it[KEY_CANVA_ACCESS_TOKEN] = token }

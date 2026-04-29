@@ -107,6 +107,7 @@ fun TranscriberApp() {
                     onSave = { viewModel.saveSettings() },
                     onSyncNow = { viewModel.syncNow() },
                     onUpdateCanvaClientId = { viewModel.updateCanvaClientId(it) },
+                    onUpdateCanvaClientSecret = { viewModel.updateCanvaClientSecret(it) },
                     onCanvaConnect = { viewModel.startCanvaAuth(context) },
                     onCanvaDisconnect = { viewModel.disconnectCanva() }
                 )

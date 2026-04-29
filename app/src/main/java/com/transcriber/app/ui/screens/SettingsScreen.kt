@@ -38,6 +38,7 @@ fun SettingsScreen(
     onSave: () -> Unit,
     onSyncNow: () -> Unit,
     onUpdateCanvaClientId: (String) -> Unit,
+    onUpdateCanvaClientSecret: (String) -> Unit,
     onCanvaConnect: () -> Unit,
     onCanvaDisconnect: () -> Unit
 ) {
@@ -215,6 +216,15 @@ fun SettingsScreen(
                 colors = textFieldColors(), shape = RoundedCornerShape(8.dp), singleLine = true
             )
             Spacer(Modifier.height(12.dp))
+            OutlinedTextField(
+                value = uiState.canvaClientSecret,
+                onValueChange = onUpdateCanvaClientSecret,
+                label = { Text("Client Secret") },
+                visualTransformation = PasswordVisualTransformation(),
+                modifier = Modifier.fillMaxWidth(),
+                colors = textFieldColors(), shape = RoundedCornerShape(8.dp), singleLine = true
+            )
+            Spacer(Modifier.height(12.dp))
             // Connection status + button
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -247,7 +257,7 @@ fun SettingsScreen(
                 } else {
                     Button(
                         onClick = onCanvaConnect,
-                        enabled = uiState.canvaClientId.isNotBlank(),
+                        enabled = uiState.canvaClientId.isNotBlank() && uiState.canvaClientSecret.isNotBlank(),
                         colors = ButtonDefaults.buttonColors(containerColor = AccentGreen, contentColor = DarkBackground),
                         shape = RoundedCornerShape(8.dp)
                     ) { Text("Connetti", fontSize = 12.sp, fontWeight = FontWeight.Bold) }
@@ -255,7 +265,7 @@ fun SettingsScreen(
             }
             Spacer(Modifier.height(6.dp))
             Text(
-                "Ottieni il Client ID su canva.dev → Applicazioni",
+                "Ottieni Client ID e Client Secret su canva.com/developers",
                 color = TextGray.copy(alpha = 0.5f),
                 style = MaterialTheme.typography.labelSmall
             )
