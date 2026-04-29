@@ -70,6 +70,7 @@ fun HomeScreen(
     var showDialog by rememberSaveable { mutableStateOf(false) }
     var showInbox by rememberSaveable { mutableStateOf(false) }
     var meetingToDelete by rememberSaveable { mutableStateOf<String?>(null) }
+    var showChatSetupDialog by rememberSaveable { mutableStateOf(false) }
     val drawerState = rememberDrawerState(DrawerValue.Closed)
     val scope = rememberCoroutineScope()
     val pagerState = rememberPagerState(initialPage = 1, pageCount = { 3 })
@@ -262,7 +263,7 @@ fun HomeScreen(
         floatingActionButton = {
             if (!showInbox && pagerState.currentPage == 0) {
                 FloatingActionButton(
-                    onClick = { /* TODO: open new chat */ },
+                    onClick = { showChatSetupDialog = true },
                     containerColor = AccentGreen,
                     contentColor = DarkBackground,
                     shape = CircleShape
@@ -310,6 +311,40 @@ fun HomeScreen(
                 }
             }
         }
+    }
+
+    if (showChatSetupDialog) {
+        AlertDialog(
+            onDismissRequest = { showChatSetupDialog = false },
+            containerColor = DarkSurface,
+            titleContentColor = TextWhite,
+            textContentColor = TextGray,
+            icon = {
+                Icon(Icons.Default.Chat, null, tint = AccentGreen, modifier = Modifier.size(28.dp))
+            },
+            title = { Text("Chat non configurata", fontWeight = FontWeight.SemiBold) },
+            text = {
+                Text(
+                    "Per avviare una chat configura il webhook n8n nelle Impostazioni. " +
+                    "Puoi usare il trascritto di qualsiasi audio elaborato come contesto.",
+                    style = MaterialTheme.typography.bodySmall,
+                    lineHeight = 18.sp
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    showChatSetupDialog = false
+                    onSettingsClick()
+                }) {
+                    Text("Impostazioni", color = AccentGreen, fontWeight = FontWeight.SemiBold)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showChatSetupDialog = false }) {
+                    Text("Ok", color = TextGray)
+                }
+            }
+        )
     }
 
     if (meetingToDelete != null) {
@@ -490,31 +525,6 @@ fun ChatTab() {
                 textAlign = TextAlign.Center,
                 lineHeight = 18.sp
             )
-            Spacer(Modifier.height(20.dp))
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier
-                    .clip(RoundedCornerShape(20.dp))
-                    .background(AccentGreen.copy(alpha = 0.08f))
-                    .border(1.dp, AccentGreen.copy(alpha = 0.2f), RoundedCornerShape(20.dp))
-                    .padding(horizontal = 12.dp, vertical = 6.dp)
-            ) {
-                Icon(Icons.Default.Mic, null, tint = AccentGreen.copy(alpha = 0.6f), modifier = Modifier.size(14.dp))
-                Spacer(Modifier.width(6.dp))
-                Text(
-                    "Nella cronologia: tocca",
-                    color = TextGray.copy(alpha = 0.6f),
-                    style = MaterialTheme.typography.labelSmall
-                )
-                Spacer(Modifier.width(4.dp))
-                Icon(Icons.Default.Chat, null, tint = AccentGreen.copy(alpha = 0.8f), modifier = Modifier.size(13.dp))
-                Spacer(Modifier.width(4.dp))
-                Text(
-                    "sugli audio elaborati",
-                    color = TextGray.copy(alpha = 0.6f),
-                    style = MaterialTheme.typography.labelSmall
-                )
-            }
         }
     }
 }
