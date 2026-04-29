@@ -610,8 +610,6 @@ fun TranscriptScreen(
             CanvaExportSheet(
                 skills = uiState.canvaSkills,
                 exportStatus = uiState.canvaExportStatus,
-                designUrl = uiState.canvaDesignUrl,
-                exportError = uiState.canvaExportError,
                 onExport = { skill ->
                     onExportToCanva(skill)
                 },
@@ -630,8 +628,6 @@ fun TranscriptScreen(
 private fun CanvaExportSheet(
     skills: List<CanvaSkillEntity>,
     exportStatus: CanvaExportStatus,
-    designUrl: String,
-    exportError: String,
     onExport: (CanvaSkillEntity) -> Unit,
     onDismiss: () -> Unit
 ) {
@@ -642,7 +638,7 @@ private fun CanvaExportSheet(
             Icon(Icons.Default.Slideshow, null, tint = AccentGreen, modifier = Modifier.size(18.dp))
             Spacer(Modifier.width(8.dp))
             Text(
-                "ESPORTA SU CANVA",
+                "GENERA PRESENTAZIONE",
                 style = MaterialTheme.typography.labelMedium,
                 color = AccentGreen,
                 fontWeight = FontWeight.Bold,
@@ -652,17 +648,9 @@ private fun CanvaExportSheet(
         Spacer(Modifier.height(20.dp))
 
         when (exportStatus) {
-            CanvaExportStatus.IDLE, CanvaExportStatus.ERROR -> {
-                if (exportError.isNotBlank()) {
-                    Text(
-                        exportError,
-                        color = ErrorRed,
-                        style = MaterialTheme.typography.bodySmall,
-                        modifier = Modifier.padding(bottom = 16.dp)
-                    )
-                }
+            is CanvaExportStatus.Idle -> {
                 Text(
-                    "Scegli una skill:",
+                    "Scegli una skill per generare una presentazione:",
                     color = TextGray,
                     style = MaterialTheme.typography.bodySmall,
                     modifier = Modifier.padding(bottom = 12.dp)
@@ -702,12 +690,10 @@ private fun CanvaExportSheet(
                     colors = ButtonDefaults.outlinedButtonColors(contentColor = TextGray),
                     border = BorderStroke(1.dp, DarkSurfaceVariant),
                     shape = RoundedCornerShape(8.dp)
-                ) { Text("Annulla") }
+                ) { Text("Cancel") }
             }
 
-            CanvaExportStatus.GENERATING, CanvaExportStatus.UPLOADING -> {
-                val stepText = if (exportStatus == CanvaExportStatus.GENERATING)
-                    "Generazione contenuto slide con AI..." else "Upload su Canva in corso..."
+            is CanvaExportStatus.Generating -> {
                 Box(
                     modifier = Modifier.fillMaxWidth().padding(vertical = 32.dp),
                     contentAlignment = Alignment.Center
@@ -715,23 +701,23 @@ private fun CanvaExportSheet(
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
                         CircularProgressIndicator(color = AccentGreen, modifier = Modifier.size(40.dp))
                         Spacer(Modifier.height(16.dp))
-                        Text(stepText, color = TextGray, style = MaterialTheme.typography.bodySmall)
+                        Text("Generating presentation...", color = TextGray, style = MaterialTheme.typography.bodySmall)
                     }
                 }
             }
 
-            CanvaExportStatus.SUCCESS -> {
+            is CanvaExportStatus.Success -> {
                 Column(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
                     Icon(Icons.Default.CheckCircle, null, tint = AccentGreen, modifier = Modifier.size(48.dp))
                     Spacer(Modifier.height(12.dp))
-                    Text("Presentazione creata!", color = TextWhite, fontWeight = FontWeight.SemiBold)
+                    Text("Presentation ready!", color = TextWhite, fontWeight = FontWeight.SemiBold)
                     Spacer(Modifier.height(24.dp))
                     Button(
                         onClick = {
-                            val intent = android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse(designUrl))
+                            val intent = android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse(exportStatus.link))
                             context.startActivity(intent)
                         },
                         colors = ButtonDefaults.buttonColors(containerColor = AccentGreen, contentColor = DarkBackground),
@@ -740,7 +726,7 @@ private fun CanvaExportSheet(
                     ) {
                         Icon(Icons.Default.OpenInNew, null, modifier = Modifier.size(18.dp))
                         Spacer(Modifier.width(8.dp))
-                        Text("APRI SU CANVA", fontWeight = FontWeight.Bold, letterSpacing = 1.sp)
+                        Text("OPEN PRESENTATION", fontWeight = FontWeight.Bold, letterSpacing = 1.sp)
                     }
                     Spacer(Modifier.height(12.dp))
                     OutlinedButton(
@@ -749,9 +735,26 @@ private fun CanvaExportSheet(
                         colors = ButtonDefaults.outlinedButtonColors(contentColor = TextGray),
                         border = BorderStroke(1.dp, DarkSurfaceVariant),
                         shape = RoundedCornerShape(8.dp)
-                    ) { Text("Chiudi") }
+                    ) { Text("Close") }
                     Spacer(Modifier.height(8.dp))
                 }
+            }
+
+            is CanvaExportStatus.Error -> {
+                Text(
+                    exportStatus.message,
+                    color = ErrorRed,
+                    style = MaterialTheme.typography.bodySmall,
+                    modifier = Modifier.padding(bottom = 16.dp)
+                )
+                Spacer(Modifier.height(20.dp))
+                OutlinedButton(
+                    onClick = onDismiss,
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = ButtonDefaults.outlinedButtonColors(contentColor = TextGray),
+                    border = BorderStroke(1.dp, DarkSurfaceVariant),
+                    shape = RoundedCornerShape(8.dp)
+                ) { Text("Close") }
             }
         }
         Spacer(Modifier.height(16.dp))

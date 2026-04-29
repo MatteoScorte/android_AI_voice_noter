@@ -85,7 +85,7 @@ fun TranscriberApp() {
                     onPlayPause = { viewModel.playPause() },
                     onSeekTo = { ms -> viewModel.seekTo(ms) },
                     onShareToCloud = { viewModel.shareMeeting() },
-                    onExportToCanva = { skill -> viewModel.exportToCanva(skill) },
+                    onExportToCanva = { skill -> viewModel.exportToWebhook(skill) },
                     onResetCanvaExport = { viewModel.resetCanvaExport() }
                 )
             }
@@ -106,10 +106,7 @@ fun TranscriberApp() {
                     onUpdateSyncEnabled = { viewModel.updateSupabaseSyncEnabled(it) },
                     onSave = { viewModel.saveSettings() },
                     onSyncNow = { viewModel.syncNow() },
-                    onUpdateCanvaClientId = { viewModel.updateCanvaClientId(it) },
-                    onUpdateCanvaClientSecret = { viewModel.updateCanvaClientSecret(it) },
-                    onCanvaConnect = { viewModel.startCanvaAuth(context) },
-                    onCanvaDisconnect = { viewModel.disconnectCanva() }
+                    onUpdateN8nWebhookUrl = { viewModel.updateN8nWebhookUrl(it) }
                 )
             }
 

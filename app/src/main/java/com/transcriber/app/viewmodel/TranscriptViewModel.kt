@@ -9,10 +9,14 @@ import android.os.IBinder
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
-import com.transcriber.app.api.CanvaApiClient
-import com.transcriber.app.api.CanvaPptxGenerator
-import com.transcriber.app.api.CanvaSlideGenerator
+import com.google.gson.Gson
+import com.google.gson.annotations.SerializedName
 import com.transcriber.app.api.DeepgramClient
+import okhttp3.MediaType.Companion.toMediaType
+import okhttp3.OkHttpClient
+import okhttp3.Request
+import okhttp3.RequestBody.Companion.toRequestBody
+import java.io.IOException
 import com.transcriber.app.api.TranscriptProcessor
 import com.transcriber.app.data.ActionItem
 import com.transcriber.app.data.CanvaSkillEntity
@@ -79,13 +83,15 @@ data class TranscriptUiState(
     val categoryColorHex: String = "",
     // Canva export
     val canvaSkills: List<CanvaSkillEntity> = emptyList(),
-    val isCanvaConnected: Boolean = false,
-    val canvaExportStatus: CanvaExportStatus = CanvaExportStatus.IDLE,
-    val canvaDesignUrl: String = "",
-    val canvaExportError: String = ""
+    val canvaExportStatus: CanvaExportStatus = CanvaExportStatus.Idle
 )
 
-enum class CanvaExportStatus { IDLE, GENERATING, UPLOADING, SUCCESS, ERROR }
+sealed class CanvaExportStatus {
+    object Idle : CanvaExportStatus()
+    object Generating : CanvaExportStatus()
+    data class Success(val link: String) : CanvaExportStatus()
+    data class Error(val message: String) : CanvaExportStatus()
+}
 
 class TranscriptViewModel(application: Application) : AndroidViewModel(application) {
 
@@ -117,11 +123,6 @@ class TranscriptViewModel(application: Application) : AndroidViewModel(applicati
         viewModelScope.launch {
             canvaSkillRepository.allSkills.collect { skills ->
                 _uiState.value = _uiState.value.copy(canvaSkills = skills)
-            }
-        }
-        viewModelScope.launch {
-            settingsRepository.canvaAccessToken.collect { token ->
-                _uiState.value = _uiState.value.copy(isCanvaConnected = token.isNotBlank())
             }
         }
     }
@@ -608,80 +609,93 @@ class TranscriptViewModel(application: Application) : AndroidViewModel(applicati
 
     // ── Canva export ──────────────────────────────────────────────────────────
 
-    fun exportToCanva(skill: CanvaSkillEntity) {
+    fun exportToWebhook(skill: CanvaSkillEntity) {
         val state = _uiState.value
         val transcript = state.finalTranscript.ifBlank { state.rawTranscript }
         if (transcript.isBlank()) return
 
-        _uiState.value = state.copy(
-            canvaExportStatus = CanvaExportStatus.GENERATING,
-            canvaExportError  = "",
-            canvaDesignUrl    = ""
-        )
+        _uiState.value = state.copy(canvaExportStatus = CanvaExportStatus.Generating)
 
         viewModelScope.launch {
             try {
-                val openRouterKey = settingsRepository.openRouterApiKey.first()
-                val model         = settingsRepository.selectedModel.first()
-                val clientId      = settingsRepository.canvaClientId.first()
+                val webhookUrl = settingsRepository.n8nWebhookUrl.first()
+                if (webhookUrl.isBlank()) {
+                    _uiState.value = _uiState.value.copy(
+                        canvaExportStatus = CanvaExportStatus.Error("n8n webhook URL not configured. Please add it in Settings.")
+                    )
+                    return@launch
+                }
 
-                val slidesResult = CanvaSlideGenerator().generateSlides(
-                    apiKey        = openRouterKey,
-                    model         = model,
-                    transcript    = transcript,
-                    skillPrompt   = skill.agentPrompt,
-                    meetingTitle  = state.title
+                val model = settingsRepository.selectedModel.first()
+
+                val gson = Gson()
+                val payload = WebhookPayload(
+                    title = state.title,
+                    transcript = transcript,
+                    skill_name = skill.name,
+                    skill_prompt = skill.agentPrompt,
+                    output_type = skill.outputType,
+                    model = model
                 )
-                if (slidesResult.isFailure) {
+
+                val jsonBody = gson.toJson(payload)
+                val request = Request.Builder()
+                    .url(webhookUrl)
+                    .post(jsonBody.toRequestBody("application/json".toMediaType()))
+                    .build()
+
+                val httpClient = OkHttpClient()
+                val response = httpClient.newCall(request).execute()
+
+                if (!response.isSuccessful) {
+                    val errorBody = response.body?.string() ?: "Unknown error"
                     _uiState.value = _uiState.value.copy(
-                        canvaExportStatus = CanvaExportStatus.ERROR,
-                        canvaExportError  = slidesResult.exceptionOrNull()?.message ?: "Errore generazione"
+                        canvaExportStatus = CanvaExportStatus.Error("Webhook error: HTTP ${response.code}. $errorBody")
                     )
                     return@launch
                 }
 
-                _uiState.value = _uiState.value.copy(canvaExportStatus = CanvaExportStatus.UPLOADING)
+                val responseBody = response.body?.string() ?: ""
+                val webhookResponse = gson.fromJson(responseBody, WebhookResponse::class.java)
 
-                val pptxBytes   = CanvaPptxGenerator.generate(slidesResult.getOrThrow())
-                val canvaClient = CanvaApiClient(getApplication())
-                val token       = canvaClient.getValidToken()
-                if (token == null) {
+                if (webhookResponse.link.isNotBlank()) {
                     _uiState.value = _uiState.value.copy(
-                        canvaExportStatus = CanvaExportStatus.ERROR,
-                        canvaExportError  = "Token Canva scaduto. Reconnettiti da Impostazioni."
+                        canvaExportStatus = CanvaExportStatus.Success(webhookResponse.link)
                     )
-                    return@launch
-                }
-
-                val importResult = canvaClient.importDesign(token, pptxBytes, state.title)
-                if (importResult.isFailure) {
+                } else {
                     _uiState.value = _uiState.value.copy(
-                        canvaExportStatus = CanvaExportStatus.ERROR,
-                        canvaExportError  = importResult.exceptionOrNull()?.message ?: "Errore upload Canva"
+                        canvaExportStatus = CanvaExportStatus.Error("No design link returned from webhook")
                     )
-                    return@launch
                 }
-
+            } catch (e: IOException) {
                 _uiState.value = _uiState.value.copy(
-                    canvaExportStatus = CanvaExportStatus.SUCCESS,
-                    canvaDesignUrl    = importResult.getOrThrow()
+                    canvaExportStatus = CanvaExportStatus.Error("Network error: ${e.message ?: "Unknown"}")
                 )
             } catch (e: Exception) {
                 _uiState.value = _uiState.value.copy(
-                    canvaExportStatus = CanvaExportStatus.ERROR,
-                    canvaExportError  = e.message ?: "Errore sconosciuto"
+                    canvaExportStatus = CanvaExportStatus.Error(e.message ?: "Unknown error")
                 )
             }
         }
     }
 
     fun resetCanvaExport() {
-        _uiState.value = _uiState.value.copy(
-            canvaExportStatus = CanvaExportStatus.IDLE,
-            canvaDesignUrl    = "",
-            canvaExportError  = ""
-        )
+        _uiState.value = _uiState.value.copy(canvaExportStatus = CanvaExportStatus.Idle)
     }
+
+    private data class WebhookPayload(
+        val title: String,
+        val transcript: String,
+        val skill_name: String,
+        val skill_prompt: String,
+        val output_type: String,
+        val model: String
+    )
+
+    private data class WebhookResponse(
+        val link: String = "",
+        val status: String = ""
+    )
 
     private suspend fun onError(meetingId: String, message: String) {
         _uiState.value = _uiState.value.copy(

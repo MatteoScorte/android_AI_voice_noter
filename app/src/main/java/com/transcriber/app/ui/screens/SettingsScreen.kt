@@ -37,10 +37,7 @@ fun SettingsScreen(
     onUpdateSyncEnabled: (Boolean) -> Unit,
     onSave: () -> Unit,
     onSyncNow: () -> Unit,
-    onUpdateCanvaClientId: (String) -> Unit,
-    onUpdateCanvaClientSecret: (String) -> Unit,
-    onCanvaConnect: () -> Unit,
-    onCanvaDisconnect: () -> Unit
+    onUpdateN8nWebhookUrl: (String) -> Unit
 ) {
     var modelExpanded by remember { mutableStateOf(false) }
 
@@ -204,68 +201,20 @@ fun SettingsScreen(
             }
             Spacer(Modifier.height(32.dp))
 
-            // ── CANVA ──
-            SectionTitle("CANVA", Icons.Default.Brush)
+            // ── N8N WEBHOOK ──
+            SectionTitle("N8N WEBHOOK", Icons.Default.Settings)
             Spacer(Modifier.height(16.dp))
             OutlinedTextField(
-                value = uiState.canvaClientId,
-                onValueChange = onUpdateCanvaClientId,
-                label = { Text("Client ID") },
-                placeholder = { Text("OC-...", color = TextGray.copy(alpha = 0.5f)) },
+                value = uiState.n8nWebhookUrl,
+                onValueChange = onUpdateN8nWebhookUrl,
+                label = { Text("Webhook URL") },
+                placeholder = { Text("https://...", color = TextGray.copy(alpha = 0.5f)) },
                 modifier = Modifier.fillMaxWidth(),
                 colors = textFieldColors(), shape = RoundedCornerShape(8.dp), singleLine = true
             )
-            Spacer(Modifier.height(12.dp))
-            OutlinedTextField(
-                value = uiState.canvaClientSecret,
-                onValueChange = onUpdateCanvaClientSecret,
-                label = { Text("Client Secret") },
-                visualTransformation = PasswordVisualTransformation(),
-                modifier = Modifier.fillMaxWidth(),
-                colors = textFieldColors(), shape = RoundedCornerShape(8.dp), singleLine = true
-            )
-            Spacer(Modifier.height(12.dp))
-            // Connection status + button
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween
-            ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Box(
-                        modifier = Modifier
-                            .size(8.dp)
-                            .background(
-                                if (uiState.isCanvaConnected) AccentGreen else TextGray.copy(alpha = 0.4f),
-                                androidx.compose.foundation.shape.CircleShape
-                            )
-                    )
-                    Spacer(Modifier.width(8.dp))
-                    Text(
-                        if (uiState.isCanvaConnected) "Connesso" else "Non connesso",
-                        color = if (uiState.isCanvaConnected) AccentGreen else TextGray,
-                        style = MaterialTheme.typography.bodySmall
-                    )
-                }
-                if (uiState.isCanvaConnected) {
-                    OutlinedButton(
-                        onClick = onCanvaDisconnect,
-                        colors = ButtonDefaults.outlinedButtonColors(contentColor = ErrorRed),
-                        border = BorderStroke(1.dp, ErrorRed.copy(alpha = 0.5f)),
-                        shape = RoundedCornerShape(8.dp)
-                    ) { Text("Disconnetti", fontSize = 12.sp) }
-                } else {
-                    Button(
-                        onClick = onCanvaConnect,
-                        enabled = uiState.canvaClientId.isNotBlank() && uiState.canvaClientSecret.isNotBlank(),
-                        colors = ButtonDefaults.buttonColors(containerColor = AccentGreen, contentColor = DarkBackground),
-                        shape = RoundedCornerShape(8.dp)
-                    ) { Text("Connetti", fontSize = 12.sp, fontWeight = FontWeight.Bold) }
-                }
-            }
             Spacer(Modifier.height(6.dp))
             Text(
-                "Ottieni Client ID e Client Secret su canva.com/developers",
+                "n8n webhook endpoint for presentation generation",
                 color = TextGray.copy(alpha = 0.5f),
                 style = MaterialTheme.typography.labelSmall
             )
@@ -306,6 +255,7 @@ fun SettingsScreen(
             Spacer(Modifier.height(24.dp))
         }
     }
+
 }
 
 @Composable
