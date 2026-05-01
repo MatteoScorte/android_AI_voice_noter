@@ -35,8 +35,10 @@ fun ChatScreen(
     var inputText by remember { mutableStateOf("") }
     val listState = rememberLazyListState()
 
-    // Auto-scroll to bottom when messages change or typing indicator appears
-    LaunchedEffect(uiState.messages.size, uiState.isTyping) {
+    // Re-scroll whenever messages change, typing state changes, or the viewport shrinks
+    // (e.g. keyboard opens — viewport height decreases so we pin to the last message)
+    val viewportHeight = listState.layoutInfo.viewportSize.height
+    LaunchedEffect(uiState.messages.size, uiState.isTyping, viewportHeight) {
         val total = uiState.messages.size + if (uiState.isTyping) 1 else 0
         if (total > 0) listState.animateScrollToItem(total - 1)
     }
