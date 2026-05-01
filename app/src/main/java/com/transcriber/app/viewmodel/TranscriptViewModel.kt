@@ -30,6 +30,7 @@ import com.transcriber.app.data.SettingsRepository
 import com.transcriber.app.data.SupabaseClient
 import com.transcriber.app.data.WordTimestamp
 import com.transcriber.app.service.PlaybackService
+import com.transcriber.app.service.ProcessingService
 import com.transcriber.app.util.Phrase
 import com.transcriber.app.util.groupIntoPhrases
 import kotlinx.coroutines.Job
@@ -483,6 +484,10 @@ class TranscriptViewModel(application: Application) : AndroidViewModel(applicati
 
     @OptIn(kotlinx.coroutines.DelicateCoroutinesApi::class)
     fun startFullProcessing(meetingId: String, category: PromptCategoryEntity) {
+        val app = getApplication<Application>()
+        app.startService(
+            Intent(app, ProcessingService::class.java).apply { action = ProcessingService.ACTION_START }
+        )
         activeProcessingIds.add(meetingId)
         kotlinx.coroutines.GlobalScope.launch {
             try {
@@ -603,6 +608,9 @@ class TranscriptViewModel(application: Application) : AndroidViewModel(applicati
 
             } finally {
                 activeProcessingIds.remove(meetingId)
+                app.startService(
+                    Intent(app, ProcessingService::class.java).apply { action = ProcessingService.ACTION_STOP }
+                )
             }
         }
     }

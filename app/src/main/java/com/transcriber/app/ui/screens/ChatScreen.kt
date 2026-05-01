@@ -25,6 +25,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.transcriber.app.api.AVAILABLE_MODELS
+import com.transcriber.app.api.LlmModel
 import com.transcriber.app.data.CanvaSkillEntity
 import com.transcriber.app.data.ChatMessageEntity
 import com.transcriber.app.ui.theme.*
@@ -39,10 +41,12 @@ fun ChatScreen(
     onSendMessage: (String) -> Unit,
     onClearError: () -> Unit,
     onExportSkill: (CanvaSkillEntity) -> Unit,
-    onResetExport: () -> Unit
+    onResetExport: () -> Unit,
+    onUpdateModel: (String) -> Unit
 ) {
     var inputText by remember { mutableStateOf("") }
     var showSkillSheet by remember { mutableStateOf(false) }
+    var showModelSheet by remember { mutableStateOf(false) }
     var lastSelectedSkill by remember { mutableStateOf<CanvaSkillEntity?>(null) }
     val listState = rememberLazyListState()
 
@@ -106,6 +110,13 @@ fun ChatScreen(
                     }
                 },
                 actions = {
+                    IconButton(onClick = { showModelSheet = true }) {
+                        Icon(
+                            Icons.Default.SmartToy,
+                            "Cambia modello",
+                            tint = TextGray.copy(alpha = 0.8f)
+                        )
+                    }
                     if (uiState.conversation?.meetingId != null) {
                         IconButton(onClick = { showSkillSheet = true }) {
                             Icon(
@@ -250,6 +261,16 @@ fun ChatScreen(
         }
     }
 
+    // ── Model selector bottom sheet ───────────────────────────────────────────
+    if (showModelSheet) {
+        ModelSelectorSheet(
+            models = AVAILABLE_MODELS,
+            currentModelId = uiState.currentModel,
+            onSelectModel = { onUpdateModel(it) },
+            onDismiss = { showModelSheet = false }
+        )
+    }
+
     // ── Skill selector bottom sheet ───────────────────────────────────────────
     if (showSkillSheet) {
         SkillSelectorSheet(
@@ -266,6 +287,75 @@ fun ChatScreen(
                 onResetExport()
             }
         )
+    }
+}
+
+// ── Model selector bottom sheet ───────────────────────────────────────────────
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun ModelSelectorSheet(
+    models: List<LlmModel>,
+    currentModelId: String,
+    onSelectModel: (String) -> Unit,
+    onDismiss: () -> Unit
+) {
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        containerColor = DarkSurface,
+        dragHandle = { BottomSheetDefaults.DragHandle(color = DarkSurfaceVariant) }
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 24.dp)
+                .padding(bottom = 32.dp)
+        ) {
+            Text(
+                "MODELLO AI",
+                letterSpacing = 1.sp,
+                style = MaterialTheme.typography.labelLarge,
+                color = AccentGreen,
+                fontWeight = FontWeight.Bold
+            )
+            Spacer(Modifier.height(4.dp))
+            Text(
+                "Il modello selezionato verrà usato per le prossime risposte",
+                color = TextGray.copy(alpha = 0.7f),
+                style = MaterialTheme.typography.bodySmall,
+                lineHeight = 17.sp
+            )
+            Spacer(Modifier.height(20.dp))
+            models.forEach { model ->
+                val isSelected = model.id == currentModelId
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(10.dp))
+                        .background(if (isSelected) AccentGreen.copy(alpha = 0.1f) else Color.Transparent)
+                        .clickable {
+                            onSelectModel(model.id)
+                            onDismiss()
+                        }
+                        .padding(vertical = 12.dp, horizontal = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(Modifier.weight(1f)) {
+                        Text(
+                            model.displayName,
+                            color = if (isSelected) AccentGreen else TextWhite,
+                            fontWeight = FontWeight.Medium,
+                            fontSize = 14.sp
+                        )
+                        Text(model.description, color = TextGray, fontSize = 12.sp)
+                    }
+                    if (isSelected) {
+                        Icon(Icons.Default.Check, null, tint = AccentGreen, modifier = Modifier.size(18.dp))
+                    }
+                }
+                HorizontalDivider(color = DarkSurfaceVariant.copy(alpha = 0.5f), thickness = 0.5.dp)
+            }
+        }
     }
 }
 

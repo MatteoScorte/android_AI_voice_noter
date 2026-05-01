@@ -221,6 +221,10 @@ class ChatConversationViewModel(application: Application) : AndroidViewModel(app
         _uiState.value = _uiState.value.copy(exportStatus = ChatExportStatus.Idle)
     }
 
+    fun updateModel(modelId: String) {
+        viewModelScope.launch { settingsRepo.updateSelectedModel(modelId) }
+    }
+
     fun clearError() {
         _uiState.value = _uiState.value.copy(error = "")
     }

@@ -187,7 +187,8 @@ fun TranscriberApp() {
                     onSendMessage = { viewModel.sendMessage(it) },
                     onClearError = { viewModel.clearError() },
                     onExportSkill = { viewModel.exportToWebhook(it) },
-                    onResetExport = { viewModel.resetExport() }
+                    onResetExport = { viewModel.resetExport() },
+                    onUpdateModel = { viewModel.updateModel(it) }
                 )
             }
 
