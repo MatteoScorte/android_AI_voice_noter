@@ -8,14 +8,20 @@ import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 
 @Database(
-    entities = [PromptCategoryEntity::class, CanvaSkillEntity::class],
-    version = 2,
+    entities = [
+        PromptCategoryEntity::class,
+        CanvaSkillEntity::class,
+        ChatConversationEntity::class,
+        ChatMessageEntity::class
+    ],
+    version = 3,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
 
     abstract fun promptCategoryDao(): PromptCategoryDao
     abstract fun canvaSkillDao(): CanvaSkillDao
+    abstract fun chatDao(): ChatDao
 
     companion object {
 
@@ -30,10 +36,37 @@ abstract class AppDatabase : RoomDatabase() {
                     "transcriber_db"
                 )
                     .addCallback(PrePopulateCallback())
-                    .addMigrations(MIGRATION_1_2)
+                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3)
                     .build()
                     .also { INSTANCE = it }
             }
+
+        // ── Migration v2 → v3: add chat tables ────────────────────────────────
+
+        private val MIGRATION_2_3 = object : Migration(2, 3) {
+            override fun migrate(database: SupportSQLiteDatabase) {
+                database.execSQL(
+                    """CREATE TABLE IF NOT EXISTS chat_conversations (
+                        id TEXT NOT NULL PRIMARY KEY,
+                        title TEXT NOT NULL,
+                        meetingId TEXT,
+                        meetingTitle TEXT,
+                        createdAt INTEGER NOT NULL,
+                        updatedAt INTEGER NOT NULL,
+                        lastMessagePreview TEXT NOT NULL DEFAULT ''
+                    )"""
+                )
+                database.execSQL(
+                    """CREATE TABLE IF NOT EXISTS chat_messages (
+                        id TEXT NOT NULL PRIMARY KEY,
+                        conversationId TEXT NOT NULL,
+                        role TEXT NOT NULL,
+                        content TEXT NOT NULL,
+                        timestamp INTEGER NOT NULL
+                    )"""
+                )
+            }
+        }
 
         // ── Migration v1 → v2: add canva_skills table ─────────────────────────
 

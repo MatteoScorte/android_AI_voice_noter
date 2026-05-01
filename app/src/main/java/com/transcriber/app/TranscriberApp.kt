@@ -14,12 +14,15 @@ import com.transcriber.app.ui.screens.CanvaSkillEditorScreen
 import com.transcriber.app.ui.screens.CanvaSkillManagerScreen
 import com.transcriber.app.ui.screens.CategoryEditorScreen
 import com.transcriber.app.ui.screens.CategoryManagerScreen
+import com.transcriber.app.ui.screens.ChatScreen
 import com.transcriber.app.ui.screens.HomeScreen
 import com.transcriber.app.ui.screens.SettingsScreen
 import com.transcriber.app.ui.screens.TranscriptScreen
 import com.transcriber.app.ui.theme.TranscriberTheme
 import com.transcriber.app.viewmodel.CanvaSkillViewModel
 import com.transcriber.app.viewmodel.CategoryViewModel
+import com.transcriber.app.viewmodel.ChatConversationViewModel
+import com.transcriber.app.viewmodel.ChatViewModel
 import com.transcriber.app.viewmodel.HomeViewModel
 import com.transcriber.app.viewmodel.SettingsViewModel
 import com.transcriber.app.viewmodel.TranscriptViewModel
@@ -34,15 +37,29 @@ fun TranscriberApp() {
             composable("home") {
                 val viewModel: HomeViewModel = viewModel()
                 val uiState by viewModel.uiState.collectAsState()
+                val chatViewModel: ChatViewModel = viewModel()
+                val chatUiState by chatViewModel.uiState.collectAsState()
 
                 LaunchedEffect(Unit) {
                     viewModel.navigationEvent.collect { meetingId ->
                         navController.navigate("transcript/$meetingId")
                     }
                 }
+                LaunchedEffect(Unit) {
+                    chatViewModel.navigationEvent.collect { conversationId ->
+                        navController.navigate("chat/$conversationId")
+                    }
+                }
 
                 HomeScreen(
                     uiState = uiState,
+                    conversations = chatUiState.conversations,
+                    completedMeetings = chatUiState.completedMeetings,
+                    onConversationClick = { navController.navigate("chat/$it") },
+                    onCreateConversation = { title, meetingId, meetingTitle ->
+                        chatViewModel.createConversation(title, meetingId, meetingTitle)
+                    },
+                    onDeleteConversation = { chatViewModel.deleteConversation(it) },
                     onStartRecording = { title, language, folderId -> viewModel.startRecording(title, language, folderId) },
                     onPauseRecording = { viewModel.pauseRecording() },
                     onResumeRecording = { viewModel.resumeRecording() },
@@ -148,6 +165,27 @@ fun TranscriberApp() {
                     skillId = skillId,
                     viewModel = viewModel,
                     onBack = { navController.popBackStack() }
+                )
+            }
+
+            // ── Chat Conversation ──────────────────────────────────────────────
+            composable(
+                "chat/{conversationId}",
+                arguments = listOf(navArgument("conversationId") { type = NavType.StringType })
+            ) { backStackEntry ->
+                val conversationId = backStackEntry.arguments?.getString("conversationId") ?: ""
+                val viewModel: ChatConversationViewModel = viewModel()
+                val uiState by viewModel.uiState.collectAsState()
+
+                LaunchedEffect(conversationId) {
+                    viewModel.loadConversation(conversationId)
+                }
+
+                ChatScreen(
+                    uiState = uiState,
+                    onBack = { navController.popBackStack() },
+                    onSendMessage = { viewModel.sendMessage(it) },
+                    onClearError = { viewModel.clearError() }
                 )
             }
 

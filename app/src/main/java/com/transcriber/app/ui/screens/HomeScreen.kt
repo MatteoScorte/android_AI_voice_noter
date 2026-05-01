@@ -36,6 +36,7 @@ import android.net.Uri
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import kotlinx.coroutines.launch
+import com.transcriber.app.data.ChatConversationEntity
 import com.transcriber.app.data.FOLDER_ID_NONE
 import com.transcriber.app.data.FOLDER_PRESET_COLORS
 import com.transcriber.app.data.InboxItem
@@ -49,6 +50,11 @@ import com.transcriber.app.viewmodel.HomeUiState
 @Composable
 fun HomeScreen(
     uiState: HomeUiState,
+    conversations: List<ChatConversationEntity>,
+    completedMeetings: List<Meeting>,
+    onConversationClick: (String) -> Unit,
+    onCreateConversation: (title: String, meetingId: String?, meetingTitle: String?) -> Unit,
+    onDeleteConversation: (ChatConversationEntity) -> Unit,
     onStartRecording: (title: String, language: String, folderId: String?) -> Unit,
     onPauseRecording: () -> Unit,
     onResumeRecording: () -> Unit,
@@ -70,7 +76,7 @@ fun HomeScreen(
     var showDialog by rememberSaveable { mutableStateOf(false) }
     var showInbox by rememberSaveable { mutableStateOf(false) }
     var meetingToDelete by rememberSaveable { mutableStateOf<String?>(null) }
-    var showChatSetupDialog by rememberSaveable { mutableStateOf(false) }
+    var showNewChatDialog by rememberSaveable { mutableStateOf(false) }
     val drawerState = rememberDrawerState(DrawerValue.Closed)
     val scope = rememberCoroutineScope()
     val pagerState = rememberPagerState(initialPage = 1, pageCount = { 3 })
@@ -263,7 +269,7 @@ fun HomeScreen(
         floatingActionButton = {
             if (!showInbox && pagerState.currentPage == 0) {
                 FloatingActionButton(
-                    onClick = { showChatSetupDialog = true },
+                    onClick = { showNewChatDialog = true },
                     containerColor = AccentGreen,
                     contentColor = DarkBackground,
                     shape = CircleShape
@@ -288,7 +294,11 @@ fun HomeScreen(
                     modifier = Modifier.fillMaxSize()
                 ) { page ->
                     when (page) {
-                        0 -> ChatTab()
+                        0 -> ChatTab(
+                            conversations = conversations,
+                            onConversationClick = onConversationClick,
+                            onDeleteConversation = onDeleteConversation
+                        )
                         1 -> RecordTab(
                             uiState = uiState,
                             onStartClick = { showDialog = true },
@@ -305,7 +315,13 @@ fun HomeScreen(
                             onUpdateFolder = onUpdateFolder,
                             onDeleteFolder = onDeleteFolder,
                             onAssignFolder = onAssignFolder,
-                            onChatWithMeeting = { scope.launch { pagerState.animateScrollToPage(0) } }
+                            onChatWithMeeting = { meetingId ->
+                                val meeting = uiState.meetings.find { it.id == meetingId }
+                                if (meeting != null) {
+                                    onCreateConversation(meeting.title, meeting.id, meeting.title)
+                                    scope.launch { pagerState.animateScrollToPage(0) }
+                                }
+                            }
                         )
                     }
                 }
@@ -313,36 +329,13 @@ fun HomeScreen(
         }
     }
 
-    if (showChatSetupDialog) {
-        AlertDialog(
-            onDismissRequest = { showChatSetupDialog = false },
-            containerColor = DarkSurface,
-            titleContentColor = TextWhite,
-            textContentColor = TextGray,
-            icon = {
-                Icon(Icons.Default.Chat, null, tint = AccentGreen, modifier = Modifier.size(28.dp))
-            },
-            title = { Text("Chat non configurata", fontWeight = FontWeight.SemiBold) },
-            text = {
-                Text(
-                    "Per avviare una chat configura il webhook n8n nelle Impostazioni. " +
-                    "Puoi usare il trascritto di qualsiasi audio elaborato come contesto.",
-                    style = MaterialTheme.typography.bodySmall,
-                    lineHeight = 18.sp
-                )
-            },
-            confirmButton = {
-                TextButton(onClick = {
-                    showChatSetupDialog = false
-                    onSettingsClick()
-                }) {
-                    Text("Impostazioni", color = AccentGreen, fontWeight = FontWeight.SemiBold)
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { showChatSetupDialog = false }) {
-                    Text("Ok", color = TextGray)
-                }
+    if (showNewChatDialog) {
+        NewChatDialog(
+            completedMeetings = completedMeetings,
+            onDismiss = { showNewChatDialog = false },
+            onConfirm = { title, meetingId, meetingTitle ->
+                showNewChatDialog = false
+                onCreateConversation(title, meetingId, meetingTitle)
             }
         )
     }
@@ -496,35 +489,255 @@ fun RecordTab(
 }
 
 @Composable
-fun ChatTab() {
-    Box(
-        modifier = Modifier.fillMaxSize(),
-        contentAlignment = Alignment.Center
-    ) {
-        Column(
-            horizontalAlignment = Alignment.CenterHorizontally,
-            modifier = Modifier.padding(horizontal = 48.dp)
+fun ChatTab(
+    conversations: List<ChatConversationEntity>,
+    onConversationClick: (String) -> Unit,
+    onDeleteConversation: (ChatConversationEntity) -> Unit
+) {
+    if (conversations.isEmpty()) {
+        Box(
+            modifier = Modifier.fillMaxSize(),
+            contentAlignment = Alignment.Center
         ) {
-            Icon(
-                Icons.Default.ChatBubbleOutline, null,
-                tint = TextGray.copy(alpha = 0.25f),
-                modifier = Modifier.size(64.dp)
-            )
-            Spacer(Modifier.height(20.dp))
-            Text(
-                "Nessuna chat",
-                color = TextWhite.copy(alpha = 0.7f),
-                fontWeight = FontWeight.SemiBold,
-                fontSize = 18.sp
-            )
-            Spacer(Modifier.height(10.dp))
-            Text(
-                "Tocca + per creare una nuova chat.\nPuoi usare il trascritto di un audio elaborato come contesto.",
-                color = TextGray.copy(alpha = 0.5f),
-                style = MaterialTheme.typography.bodySmall,
-                textAlign = TextAlign.Center,
-                lineHeight = 18.sp
-            )
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                modifier = Modifier.padding(horizontal = 48.dp)
+            ) {
+                Icon(
+                    Icons.Default.ChatBubbleOutline, null,
+                    tint = TextGray.copy(alpha = 0.25f),
+                    modifier = Modifier.size(64.dp)
+                )
+                Spacer(Modifier.height(20.dp))
+                Text(
+                    "Nessuna chat",
+                    color = TextWhite.copy(alpha = 0.7f),
+                    fontWeight = FontWeight.SemiBold,
+                    fontSize = 18.sp
+                )
+                Spacer(Modifier.height(10.dp))
+                Text(
+                    "Tocca + per creare una nuova chat.\nPuoi usare il trascritto di un audio elaborato come contesto.",
+                    color = TextGray.copy(alpha = 0.5f),
+                    style = MaterialTheme.typography.bodySmall,
+                    textAlign = TextAlign.Center,
+                    lineHeight = 18.sp
+                )
+            }
+        }
+    } else {
+        LazyColumn(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(horizontal = 16.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+            contentPadding = PaddingValues(vertical = 16.dp)
+        ) {
+            items(conversations, key = { it.id }) { conv ->
+                ConversationCard(
+                    conversation = conv,
+                    onClick = { onConversationClick(conv.id) },
+                    onDelete = { onDeleteConversation(conv) }
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun ConversationCard(
+    conversation: ChatConversationEntity,
+    onClick: () -> Unit,
+    onDelete: () -> Unit
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth().clickable(onClick = onClick),
+        colors = CardDefaults.cardColors(containerColor = Color.Transparent),
+        border = BorderStroke(1.dp, DarkSurfaceVariant),
+        shape = RoundedCornerShape(12.dp)
+    ) {
+        Row(Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
+            Box(
+                modifier = Modifier
+                    .size(40.dp)
+                    .clip(CircleShape)
+                    .background(AccentGreen.copy(alpha = 0.12f)),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(Icons.Default.Chat, null, tint = AccentGreen.copy(alpha = 0.7f), modifier = Modifier.size(20.dp))
+            }
+            Spacer(Modifier.width(12.dp))
+            Column(Modifier.weight(1f)) {
+                Text(
+                    conversation.title,
+                    color = TextWhite,
+                    fontWeight = FontWeight.SemiBold,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    fontSize = 15.sp
+                )
+                if (conversation.meetingTitle != null) {
+                    Spacer(Modifier.height(3.dp))
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Default.AttachFile, null, tint = AccentGreen.copy(alpha = 0.6f), modifier = Modifier.size(11.dp))
+                        Spacer(Modifier.width(3.dp))
+                        Text(
+                            conversation.meetingTitle,
+                            color = AccentGreen.copy(alpha = 0.6f),
+                            fontSize = 11.sp,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
+                }
+                if (conversation.lastMessagePreview.isNotBlank()) {
+                    Spacer(Modifier.height(3.dp))
+                    Text(
+                        conversation.lastMessagePreview,
+                        color = TextGray.copy(alpha = 0.6f),
+                        fontSize = 12.sp,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+            }
+            IconButton(onClick = onDelete, modifier = Modifier.size(36.dp)) {
+                Icon(Icons.Default.DeleteOutline, "Elimina", tint = TextGray, modifier = Modifier.size(18.dp))
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun NewChatDialog(
+    completedMeetings: List<Meeting>,
+    onDismiss: () -> Unit,
+    onConfirm: (title: String, meetingId: String?, meetingTitle: String?) -> Unit
+) {
+    var title by remember { mutableStateOf("") }
+    var selectedMeetingId by remember { mutableStateOf<String?>(null) }
+    var meetingExpanded by remember { mutableStateOf(false) }
+
+    val selectedMeeting = completedMeetings.find { it.id == selectedMeetingId }
+
+    Dialog(onDismissRequest = onDismiss) {
+        Card(
+            shape = RoundedCornerShape(12.dp),
+            colors = CardDefaults.cardColors(containerColor = DarkSurface),
+            border = BorderStroke(1.dp, DarkSurfaceVariant),
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Column(Modifier.padding(24.dp)) {
+                Text(
+                    "NUOVA CHAT",
+                    letterSpacing = 1.sp,
+                    style = MaterialTheme.typography.labelLarge,
+                    color = AccentGreen,
+                    fontWeight = FontWeight.Bold
+                )
+                Spacer(Modifier.height(20.dp))
+                OutlinedTextField(
+                    value = title,
+                    onValueChange = { title = it },
+                    label = { Text("Titolo (opzionale)", style = MaterialTheme.typography.bodySmall) },
+                    placeholder = {
+                        Text(
+                            selectedMeeting?.title ?: "Nuova chat",
+                            color = TextGray.copy(alpha = 0.35f),
+                            fontSize = 14.sp
+                        )
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true,
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedTextColor = TextWhite, unfocusedTextColor = TextWhite,
+                        focusedBorderColor = AccentGreen, unfocusedBorderColor = DarkSurfaceVariant,
+                        cursorColor = AccentGreen, focusedLabelColor = AccentGreen, unfocusedLabelColor = TextGray
+                    ),
+                    textStyle = MaterialTheme.typography.bodyMedium,
+                    shape = RoundedCornerShape(8.dp)
+                )
+                if (completedMeetings.isNotEmpty()) {
+                    Spacer(Modifier.height(16.dp))
+                    ExposedDropdownMenuBox(
+                        expanded = meetingExpanded,
+                        onExpandedChange = { meetingExpanded = it }
+                    ) {
+                        OutlinedTextField(
+                            value = selectedMeeting?.title ?: "Nessun contesto",
+                            onValueChange = {},
+                            readOnly = true,
+                            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(meetingExpanded) },
+                            label = {
+                                Text(
+                                    "Contesto audio (opzionale)",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = AccentGreen
+                                )
+                            },
+                            leadingIcon = {
+                                Icon(
+                                    if (selectedMeeting != null) Icons.Default.AttachFile else Icons.Default.ChatBubbleOutline,
+                                    null,
+                                    tint = if (selectedMeeting != null) AccentGreen else TextGray,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                            },
+                            modifier = Modifier.fillMaxWidth().menuAnchor(),
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedTextColor = TextWhite, unfocusedTextColor = TextWhite,
+                                focusedBorderColor = AccentGreen, unfocusedBorderColor = DarkSurfaceVariant,
+                                cursorColor = AccentGreen
+                            ),
+                            textStyle = MaterialTheme.typography.bodyMedium,
+                            shape = RoundedCornerShape(8.dp)
+                        )
+                        ExposedDropdownMenu(
+                            expanded = meetingExpanded,
+                            onDismissRequest = { meetingExpanded = false },
+                            modifier = Modifier.background(DarkCard)
+                        ) {
+                            DropdownMenuItem(
+                                text = {
+                                    Text("Nessun contesto", color = TextGray, style = MaterialTheme.typography.bodyMedium)
+                                },
+                                onClick = { selectedMeetingId = null; meetingExpanded = false },
+                                contentPadding = ExposedDropdownMenuDefaults.ItemContentPadding
+                            )
+                            completedMeetings.forEach { meeting ->
+                                DropdownMenuItem(
+                                    text = {
+                                        Text(meeting.title, color = TextWhite, style = MaterialTheme.typography.bodyMedium)
+                                    },
+                                    onClick = { selectedMeetingId = meeting.id; meetingExpanded = false },
+                                    contentPadding = ExposedDropdownMenuDefaults.ItemContentPadding
+                                )
+                            }
+                        }
+                    }
+                }
+                Spacer(Modifier.height(24.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    OutlinedButton(
+                        onClick = onDismiss,
+                        modifier = Modifier.weight(1f),
+                        border = BorderStroke(1.dp, DarkSurfaceVariant),
+                        colors = ButtonDefaults.outlinedButtonColors(contentColor = TextGray),
+                        shape = RoundedCornerShape(8.dp)
+                    ) { Text("ANNULLA", fontSize = 12.sp, letterSpacing = 1.sp) }
+                    OutlinedButton(
+                        onClick = {
+                            val finalTitle = title.ifBlank { selectedMeeting?.title ?: "Nuova chat" }
+                            onConfirm(finalTitle, selectedMeetingId, selectedMeeting?.title)
+                        },
+                        modifier = Modifier.weight(1f),
+                        border = BorderStroke(1.dp, AccentGreen.copy(alpha = 0.5f)),
+                        colors = ButtonDefaults.outlinedButtonColors(contentColor = AccentGreen),
+                        shape = RoundedCornerShape(8.dp)
+                    ) { Text("AVVIA", fontSize = 12.sp, letterSpacing = 1.sp) }
+                }
+            }
         }
     }
 }
