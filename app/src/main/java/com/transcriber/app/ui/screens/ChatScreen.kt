@@ -93,15 +93,6 @@ fun ChatScreen(
                                 )
                             }
                         }
-                        if (uiState.currentModel.isNotBlank()) {
-                            Text(
-                                uiState.currentModel,
-                                fontSize = 10.sp,
-                                color = TextGray.copy(alpha = 0.55f),
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis
-                            )
-                        }
                     }
                 },
                 navigationIcon = {
