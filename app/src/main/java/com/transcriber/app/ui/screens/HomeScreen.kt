@@ -332,6 +332,7 @@ fun HomeScreen(
     if (showNewChatDialog) {
         NewChatDialog(
             completedMeetings = completedMeetings,
+            folders = uiState.folders,
             onDismiss = { showNewChatDialog = false },
             onConfirm = { title, meetingId, meetingTitle ->
                 showNewChatDialog = false
@@ -612,6 +613,7 @@ private fun ConversationCard(
 @Composable
 private fun NewChatDialog(
     completedMeetings: List<Meeting>,
+    folders: List<MeetingFolder>,
     onDismiss: () -> Unit,
     onConfirm: (title: String, meetingId: String?, meetingTitle: String?) -> Unit
 ) {
@@ -677,12 +679,26 @@ private fun NewChatDialog(
                                 )
                             },
                             leadingIcon = {
-                                Icon(
-                                    if (selectedMeeting != null) Icons.Default.AttachFile else Icons.Default.ChatBubbleOutline,
-                                    null,
-                                    tint = if (selectedMeeting != null) AccentGreen else TextGray,
-                                    modifier = Modifier.size(18.dp)
-                                )
+                                val selFolder = selectedMeeting?.folderId?.let { fid ->
+                                    folders.find { it.id == fid }
+                                }
+                                if (selFolder != null) {
+                                    Box(
+                                        Modifier
+                                            .size(12.dp)
+                                            .background(
+                                                Color(android.graphics.Color.parseColor(selFolder.colorHex)),
+                                                CircleShape
+                                            )
+                                    )
+                                } else {
+                                    Icon(
+                                        if (selectedMeeting != null) Icons.Default.AttachFile else Icons.Default.ChatBubbleOutline,
+                                        null,
+                                        tint = if (selectedMeeting != null) AccentGreen else TextGray,
+                                        modifier = Modifier.size(18.dp)
+                                    )
+                                }
                             },
                             modifier = Modifier.fillMaxWidth().menuAnchor(),
                             colors = OutlinedTextFieldDefaults.colors(
@@ -706,9 +722,28 @@ private fun NewChatDialog(
                                 contentPadding = ExposedDropdownMenuDefaults.ItemContentPadding
                             )
                             completedMeetings.forEach { meeting ->
+                                val folder = folders.find { it.id == meeting.folderId }
+                                val itemColor = if (folder != null)
+                                    Color(android.graphics.Color.parseColor(folder.colorHex))
+                                else
+                                    TextWhite
                                 DropdownMenuItem(
                                     text = {
-                                        Text(meeting.title, color = TextWhite, style = MaterialTheme.typography.bodyMedium)
+                                        Row(verticalAlignment = Alignment.CenterVertically) {
+                                            if (folder != null) {
+                                                Box(
+                                                    Modifier
+                                                        .size(8.dp)
+                                                        .background(itemColor, CircleShape)
+                                                )
+                                                Spacer(Modifier.width(8.dp))
+                                            }
+                                            Text(
+                                                meeting.title,
+                                                color = itemColor,
+                                                style = MaterialTheme.typography.bodyMedium
+                                            )
+                                        }
                                     },
                                     onClick = { selectedMeetingId = meeting.id; meetingExpanded = false },
                                     contentPadding = ExposedDropdownMenuDefaults.ItemContentPadding

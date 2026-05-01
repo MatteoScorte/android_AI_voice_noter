@@ -7,12 +7,24 @@ data class LlmModel(
 )
 
 val AVAILABLE_MODELS = listOf(
-    LlmModel("google/gemini-2.0-flash-001", "Gemini 2.0 Flash", "Veloce e preciso, ottimo rapporto qualità/prezzo"),
-    LlmModel("anthropic/claude-3.5-sonnet", "Claude 3.5 Sonnet", "Eccellente per testi lunghi e analisi dettagliata"),
-    LlmModel("openai/gpt-4o", "GPT-4o", "Modello premium, massima qualità"),
-    LlmModel("openai/gpt-4o-mini", "GPT-4o Mini", "Economico ma capace"),
-    LlmModel("meta-llama/llama-3.1-70b-instruct", "Llama 3.1 70B", "Open-source, buone prestazioni"),
-    LlmModel("google/gemini-1.5-pro", "Gemini 1.5 Pro", "Context window enorme, ideale per trascrizioni lunghe")
+    // ── Veloce / Economico ────────────────────────────────────────────────────
+    LlmModel("openai/gpt-4o-mini",           "GPT-4o Mini",          "Economico e veloce, ideale per chat semplici"),
+    LlmModel("anthropic/claude-3.5-haiku",   "Claude 3.5 Haiku",     "Il più veloce di Anthropic, costo minimo"),
+    LlmModel("google/gemini-2.0-flash-001",  "Gemini 2.0 Flash",     "Veloce, ottimo rapporto qualità/prezzo"),
+
+    // ── Bilanciato ────────────────────────────────────────────────────────────
+    LlmModel("anthropic/claude-3.5-sonnet",  "Claude 3.5 Sonnet",    "Ottimo equilibrio velocità/qualità"),
+    LlmModel("openai/gpt-4o",                "GPT-4o",               "Modello bilanciato di OpenAI"),
+    LlmModel("meta-llama/llama-3.3-70b-instruct", "Llama 3.3 70B",  "Open-source, eccellente per l'italiano"),
+
+    // ── Avanzato ──────────────────────────────────────────────────────────────
+    LlmModel("anthropic/claude-opus-4",      "Claude Opus 4",        "Il più capace di Anthropic, per chat difficili"),
+    LlmModel("openai/gpt-4-turbo",           "GPT-4 Turbo",          "Alta qualità, context window da 128k token"),
+    LlmModel("google/gemini-2.5-pro-preview","Gemini 2.5 Pro",       "Context window enorme, ideale per trascrizioni lunghe"),
+
+    // ── Ragionamento ──────────────────────────────────────────────────────────
+    LlmModel("deepseek/deepseek-r1",         "DeepSeek R1",          "Ragionamento avanzato, eccellente per analisi"),
+    LlmModel("openai/o3-mini",               "OpenAI o3 Mini",       "Modello di ragionamento compatto di OpenAI"),
 )
 
 data class ChatMessage(val role: String, val content: String)
