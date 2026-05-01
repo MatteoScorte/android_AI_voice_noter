@@ -185,7 +185,9 @@ fun TranscriberApp() {
                     uiState = uiState,
                     onBack = { navController.popBackStack() },
                     onSendMessage = { viewModel.sendMessage(it) },
-                    onClearError = { viewModel.clearError() }
+                    onClearError = { viewModel.clearError() },
+                    onExportSkill = { viewModel.exportToWebhook(it) },
+                    onResetExport = { viewModel.resetExport() }
                 )
             }
 

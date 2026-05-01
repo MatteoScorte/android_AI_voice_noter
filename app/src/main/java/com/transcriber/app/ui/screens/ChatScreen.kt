@@ -2,6 +2,8 @@ package com.transcriber.app.ui.screens
 
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -17,12 +19,17 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.transcriber.app.data.CanvaSkillEntity
 import com.transcriber.app.data.ChatMessageEntity
 import com.transcriber.app.ui.theme.*
 import com.transcriber.app.viewmodel.ChatConversationUiState
+import com.transcriber.app.viewmodel.ChatExportStatus
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -30,13 +37,25 @@ fun ChatScreen(
     uiState: ChatConversationUiState,
     onBack: () -> Unit,
     onSendMessage: (String) -> Unit,
-    onClearError: () -> Unit
+    onClearError: () -> Unit,
+    onExportSkill: (CanvaSkillEntity) -> Unit,
+    onResetExport: () -> Unit
 ) {
     var inputText by remember { mutableStateOf("") }
+    var showSkillSheet by remember { mutableStateOf(false) }
+    var lastSelectedSkill by remember { mutableStateOf<CanvaSkillEntity?>(null) }
     val listState = rememberLazyListState()
 
-    // Re-scroll whenever messages change, typing state changes, or the viewport shrinks
-    // (e.g. keyboard opens — viewport height decreases so we pin to the last message)
+    // Close skill sheet automatically when generation succeeds (status returns to Idle)
+    var prevExportStatus by remember { mutableStateOf<ChatExportStatus>(ChatExportStatus.Idle) }
+    LaunchedEffect(uiState.exportStatus) {
+        if (prevExportStatus is ChatExportStatus.Generating && uiState.exportStatus is ChatExportStatus.Idle) {
+            showSkillSheet = false
+        }
+        prevExportStatus = uiState.exportStatus
+    }
+
+    // Re-scroll whenever messages change, typing state changes, or viewport shrinks (keyboard opens)
     val viewportHeight = listState.layoutInfo.viewportSize.height
     LaunchedEffect(uiState.messages.size, uiState.isTyping, viewportHeight) {
         val total = uiState.messages.size + if (uiState.isTyping) 1 else 0
@@ -70,11 +89,31 @@ fun ChatScreen(
                                 )
                             }
                         }
+                        if (uiState.currentModel.isNotBlank()) {
+                            Text(
+                                uiState.currentModel,
+                                fontSize = 10.sp,
+                                color = TextGray.copy(alpha = 0.55f),
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        }
                     }
                 },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, "Indietro", tint = TextWhite)
+                    }
+                },
+                actions = {
+                    if (uiState.conversation?.meetingId != null) {
+                        IconButton(onClick = { showSkillSheet = true }) {
+                            Icon(
+                                Icons.Default.Slideshow,
+                                "Crea presentazione",
+                                tint = AccentGreen.copy(alpha = 0.85f)
+                            )
+                        }
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = DarkBackground)
@@ -210,10 +249,160 @@ fun ChatScreen(
             }
         }
     }
+
+    // ── Skill selector bottom sheet ───────────────────────────────────────────
+    if (showSkillSheet) {
+        SkillSelectorSheet(
+            skills = uiState.skills,
+            exportStatus = uiState.exportStatus,
+            lastSelectedSkill = lastSelectedSkill,
+            onSkillSelected = { skill ->
+                lastSelectedSkill = skill
+                onExportSkill(skill)
+            },
+            onRetry = { lastSelectedSkill?.let { onExportSkill(it) } },
+            onDismiss = {
+                showSkillSheet = false
+                onResetExport()
+            }
+        )
+    }
 }
+
+// ── Skill selector bottom sheet ───────────────────────────────────────────────
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun SkillSelectorSheet(
+    skills: List<CanvaSkillEntity>,
+    exportStatus: ChatExportStatus,
+    lastSelectedSkill: CanvaSkillEntity?,
+    onSkillSelected: (CanvaSkillEntity) -> Unit,
+    onRetry: () -> Unit,
+    onDismiss: () -> Unit
+) {
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        containerColor = DarkSurface,
+        dragHandle = { BottomSheetDefaults.DragHandle(color = DarkSurfaceVariant) }
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 24.dp)
+                .padding(bottom = 32.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            when (exportStatus) {
+                is ChatExportStatus.Generating -> {
+                    Spacer(Modifier.height(24.dp))
+                    CircularProgressIndicator(color = AccentGreen, modifier = Modifier.size(40.dp))
+                    Spacer(Modifier.height(16.dp))
+                    Text(
+                        "Generazione in corso...",
+                        color = TextWhite,
+                        fontWeight = FontWeight.SemiBold,
+                        fontSize = 16.sp
+                    )
+                    Spacer(Modifier.height(6.dp))
+                    lastSelectedSkill?.let { skill ->
+                        Text(
+                            "${skill.emoji} ${skill.name}",
+                            color = TextGray,
+                            fontSize = 13.sp
+                        )
+                    }
+                    Spacer(Modifier.height(24.dp))
+                }
+
+                is ChatExportStatus.Error -> {
+                    Spacer(Modifier.height(16.dp))
+                    Icon(
+                        Icons.Default.ErrorOutline, null,
+                        tint = ErrorRed,
+                        modifier = Modifier.size(36.dp)
+                    )
+                    Spacer(Modifier.height(12.dp))
+                    Text(
+                        exportStatus.message,
+                        color = ErrorRed,
+                        style = MaterialTheme.typography.bodySmall,
+                        textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                    )
+                    Spacer(Modifier.height(20.dp))
+                    Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                        OutlinedButton(
+                            onClick = onDismiss,
+                            border = androidx.compose.foundation.BorderStroke(1.dp, DarkSurfaceVariant),
+                            colors = ButtonDefaults.outlinedButtonColors(contentColor = TextGray),
+                            shape = RoundedCornerShape(8.dp)
+                        ) { Text("Chiudi", fontSize = 13.sp) }
+                        if (lastSelectedSkill != null) {
+                            OutlinedButton(
+                                onClick = onRetry,
+                                border = androidx.compose.foundation.BorderStroke(1.dp, AccentGreen.copy(alpha = 0.5f)),
+                                colors = ButtonDefaults.outlinedButtonColors(contentColor = AccentGreen),
+                                shape = RoundedCornerShape(8.dp)
+                            ) { Text("Riprova", fontSize = 13.sp) }
+                        }
+                    }
+                    Spacer(Modifier.height(16.dp))
+                }
+
+                is ChatExportStatus.Idle -> {
+                    Text(
+                        "CREA PRESENTAZIONE",
+                        letterSpacing = 1.sp,
+                        style = MaterialTheme.typography.labelLarge,
+                        color = AccentGreen,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Spacer(Modifier.height(4.dp))
+                    Text(
+                        "Seleziona un template per generare la presentazione dall'audio",
+                        color = TextGray.copy(alpha = 0.7f),
+                        style = MaterialTheme.typography.bodySmall,
+                        textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                        lineHeight = 17.sp
+                    )
+                    Spacer(Modifier.height(20.dp))
+                    skills.forEach { skill ->
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(10.dp))
+                                .clickable { onSkillSelected(skill) }
+                                .padding(vertical = 12.dp, horizontal = 8.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(skill.emoji, fontSize = 24.sp)
+                            Spacer(Modifier.width(14.dp))
+                            Column(Modifier.weight(1f)) {
+                                Text(skill.name, color = TextWhite, fontWeight = FontWeight.Medium, fontSize = 14.sp)
+                                Text(skill.outputType, color = TextGray, fontSize = 12.sp)
+                            }
+                            Icon(
+                                Icons.Default.ChevronRight, null,
+                                tint = TextGray.copy(alpha = 0.4f),
+                                modifier = Modifier.size(18.dp)
+                            )
+                        }
+                        HorizontalDivider(color = DarkSurfaceVariant.copy(alpha = 0.5f), thickness = 0.5.dp)
+                    }
+                }
+            }
+        }
+    }
+}
+
+// ── Message bubbles ───────────────────────────────────────────────────────────
 
 @Composable
 private fun MessageBubble(msg: ChatMessageEntity) {
+    if (msg.role == "system_link") {
+        LinkCard(msg.content)
+        return
+    }
     val isUser = msg.role == "user"
     Row(
         modifier = Modifier.fillMaxWidth(),
@@ -242,6 +431,66 @@ private fun MessageBubble(msg: ChatMessageEntity) {
         }
     }
 }
+
+@Composable
+private fun LinkCard(content: String) {
+    val parts = content.split("\n", limit = 2)
+    val skillName = parts.getOrNull(0) ?: "Presentazione"
+    val link = parts.getOrNull(1) ?: content
+    val uriHandler = LocalUriHandler.current
+
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.Center
+    ) {
+        Column(
+            modifier = Modifier
+                .widthIn(max = 310.dp)
+                .clip(RoundedCornerShape(14.dp))
+                .border(1.dp, AccentGreen.copy(alpha = 0.4f), RoundedCornerShape(14.dp))
+                .background(AccentGreen.copy(alpha = 0.07f))
+                .padding(horizontal = 16.dp, vertical = 14.dp)
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(
+                    Icons.Default.Slideshow, null,
+                    tint = AccentGreen,
+                    modifier = Modifier.size(18.dp)
+                )
+                Spacer(Modifier.width(8.dp))
+                Text(
+                    skillName,
+                    color = AccentGreen,
+                    fontWeight = FontWeight.SemiBold,
+                    fontSize = 13.sp
+                )
+            }
+            Spacer(Modifier.height(8.dp))
+            Text(
+                link,
+                color = TextGray.copy(alpha = 0.7f),
+                fontSize = 11.sp,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis
+            )
+            Spacer(Modifier.height(12.dp))
+            OutlinedButton(
+                onClick = { uriHandler.openUri(link) },
+                modifier = Modifier.fillMaxWidth(),
+                border = androidx.compose.foundation.BorderStroke(1.dp, AccentGreen.copy(alpha = 0.5f)),
+                colors = ButtonDefaults.outlinedButtonColors(contentColor = AccentGreen),
+                shape = RoundedCornerShape(8.dp),
+                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
+            ) {
+                Icon(Icons.Default.OpenInNew, null, modifier = Modifier.size(14.dp))
+                Spacer(Modifier.width(6.dp))
+                Text("Apri presentazione", fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+            }
+        }
+    }
+}
+
+// ── Typing indicator ──────────────────────────────────────────────────────────
 
 @Composable
 private fun TypingIndicator() {
