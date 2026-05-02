@@ -9,11 +9,11 @@ data class LlmModel(
 val AVAILABLE_MODELS = listOf(
     // ── Veloce / Economico ────────────────────────────────────────────────────
     LlmModel("openai/gpt-4o-mini",           "GPT-4o Mini",          "Economico e veloce, ideale per chat semplici"),
-    LlmModel("anthropic/claude-3.5-haiku",   "Claude 3.5 Haiku",     "Il più veloce di Anthropic, costo minimo"),
+    LlmModel("anthropic/claude-haiku-4-5",    "Claude Haiku 4.5",     "Il più veloce di Anthropic, costo minimo"),
     LlmModel("google/gemini-2.0-flash-001",  "Gemini 2.0 Flash",     "Veloce, ottimo rapporto qualità/prezzo"),
 
     // ── Bilanciato ────────────────────────────────────────────────────────────
-    LlmModel("anthropic/claude-3.5-sonnet",  "Claude 3.5 Sonnet",    "Ottimo equilibrio velocità/qualità"),
+    LlmModel("anthropic/claude-sonnet-4-5",   "Claude Sonnet 4.5",    "Ottimo equilibrio velocità/qualità"),
     LlmModel("openai/gpt-4o",                "GPT-4o",               "Modello bilanciato di OpenAI"),
     LlmModel("meta-llama/llama-3.3-70b-instruct", "Llama 3.3 70B",  "Open-source, eccellente per l'italiano"),
 

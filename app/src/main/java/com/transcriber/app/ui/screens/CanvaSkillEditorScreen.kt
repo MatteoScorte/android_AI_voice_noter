@@ -35,7 +35,7 @@ private val SKILL_PRESET_COLORS = listOf(
     "#80CBC4", "#CE93D8"
 )
 
-private val OUTPUT_TYPES = listOf("Slide", "Locandina", "Infografica", "Social", "Altro")
+private val OUTPUT_TYPES = listOf("Slide")
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -109,7 +109,7 @@ fun CanvaSkillEditorScreen(
                     value = state.name,
                     onValueChange = viewModel::updateName,
                     label = { Text("Nome skill") },
-                    placeholder = { Text("Es. Slide Cliente, Locandina...", color = TextGray.copy(alpha = 0.5f)) },
+                    placeholder = { Text("Es. Slide Cliente, Slide Universitarie...", color = TextGray.copy(alpha = 0.5f)) },
                     modifier = Modifier.weight(1f),
                     singleLine = true,
                     colors = skillFieldColors(),

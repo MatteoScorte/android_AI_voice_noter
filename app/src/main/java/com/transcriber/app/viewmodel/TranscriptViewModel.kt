@@ -1,22 +1,30 @@
 package com.transcriber.app.viewmodel
 
 import android.app.Application
+import android.app.NotificationChannel
+import android.app.NotificationManager
+import android.app.PendingIntent
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.content.ServiceConnection
+import android.net.Uri
+import android.os.Build
 import android.os.IBinder
+import androidx.core.app.NotificationCompat
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.google.gson.Gson
 import com.google.gson.annotations.SerializedName
+import com.transcriber.app.R
 import com.transcriber.app.api.DeepgramClient
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
 import java.io.IOException
+import java.util.concurrent.TimeUnit
 import com.transcriber.app.api.TranscriptProcessor
 import com.transcriber.app.data.ActionItem
 import com.transcriber.app.data.CanvaSkillEntity
@@ -82,29 +90,12 @@ data class TranscriptUiState(
     val categoryName: String = "",
     val categoryEmoji: String = "",
     val categoryColorHex: String = "",
-    // Canva export
+    // Slide export
     val canvaSkills: List<CanvaSkillEntity> = emptyList(),
-    val canvaExportStatus: CanvaExportStatus = CanvaExportStatus.Idle
+    val currentModel: String = ""
 )
 
-sealed class CanvaExportStatus {
-    object Idle : CanvaExportStatus()
-    object Generating : CanvaExportStatus()
-    data class Success(val link: String) : CanvaExportStatus()
-    data class Error(val message: String) : CanvaExportStatus()
-}
-
 class TranscriptViewModel(application: Application) : AndroidViewModel(application) {
-
-    companion object {
-        /**
-         * Tracks meeting IDs that have an active GlobalScope processing job.
-         * Lives in-memory for the duration of the app process — cleared on process kill.
-         * This lets loadMeeting() distinguish "still running" from "was interrupted".
-         */
-        private val activeProcessingIds = java.util.concurrent.CopyOnWriteArraySet<String>()
-        fun isProcessingActive(meetingId: String): Boolean = meetingId in activeProcessingIds
-    }
 
     private val meetingRepository = MeetingRepository(application)
     private val settingsRepository = SettingsRepository(application)
@@ -112,10 +103,17 @@ class TranscriptViewModel(application: Application) : AndroidViewModel(applicati
     private val canvaSkillRepository = CanvaSkillRepository(application)
     private val deepgramClient = DeepgramClient()
     private val transcriptProcessor = TranscriptProcessor()
+    private val notifManager = application.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+    private val slideHttpClient = OkHttpClient.Builder()
+        .connectTimeout(30, TimeUnit.SECONDS)
+        .readTimeout(10, TimeUnit.MINUTES)
+        .writeTimeout(30, TimeUnit.SECONDS)
+        .build()
 
     private val _uiState = MutableStateFlow(TranscriptUiState())
 
     init {
+        createSlideNotificationChannel()
         viewModelScope.launch {
             promptCategoryRepository.allCategories.collect { cats ->
                 _uiState.value = _uiState.value.copy(categories = cats)
@@ -124,6 +122,11 @@ class TranscriptViewModel(application: Application) : AndroidViewModel(applicati
         viewModelScope.launch {
             canvaSkillRepository.allSkills.collect { skills ->
                 _uiState.value = _uiState.value.copy(canvaSkills = skills)
+            }
+        }
+        viewModelScope.launch {
+            settingsRepository.selectedModel.collect { model ->
+                _uiState.value = _uiState.value.copy(currentModel = model)
             }
         }
     }
@@ -615,27 +618,25 @@ class TranscriptViewModel(application: Application) : AndroidViewModel(applicati
         }
     }
 
-    // ── Canva export ──────────────────────────────────────────────────────────
+    // ── Slide export ──────────────────────────────────────────────────────────
 
-    fun exportToWebhook(skill: CanvaSkillEntity) {
+    fun exportToWebhook(skill: CanvaSkillEntity, style: String = "blank", modelId: String = "", slideCount: Int = 10, fileName: String = "") {
         val state = _uiState.value
         val transcript = state.finalTranscript.ifBlank { state.rawTranscript }
         if (transcript.isBlank()) return
-
-        _uiState.value = state.copy(canvaExportStatus = CanvaExportStatus.Generating)
+        val notifId = (System.currentTimeMillis() % Int.MAX_VALUE).toInt()
+        val resolvedFileName = fileName.ifBlank { state.title }
 
         viewModelScope.launch {
+            notifySlideGenerating(notifId, skill.name, resolvedFileName)
             try {
                 val webhookUrl = settingsRepository.n8nWebhookUrl.first()
                 if (webhookUrl.isBlank()) {
-                    _uiState.value = _uiState.value.copy(
-                        canvaExportStatus = CanvaExportStatus.Error("n8n webhook URL not configured. Please add it in Settings.")
-                    )
+                    notifySlideError(notifId, "n8n webhook URL non configurato. Vai nelle Impostazioni.")
                     return@launch
                 }
 
-                val model = settingsRepository.selectedModel.first()
-
+                val model = if (modelId.isNotBlank()) modelId else settingsRepository.selectedModel.first()
                 val gson = Gson()
                 val payload = WebhookPayload(
                     title = state.title,
@@ -643,52 +644,75 @@ class TranscriptViewModel(application: Application) : AndroidViewModel(applicati
                     skill_name = skill.name,
                     skill_prompt = skill.agentPrompt,
                     output_type = skill.outputType,
-                    model = model
+                    model = model,
+                    style = style,
+                    slide_count = slideCount,
+                    file_name = resolvedFileName
                 )
 
-                val jsonBody = gson.toJson(payload)
-                val request = Request.Builder()
-                    .url(webhookUrl)
-                    .post(jsonBody.toRequestBody("application/json".toMediaType()))
-                    .build()
-
-                val httpClient = OkHttpClient()
-                val response = httpClient.newCall(request).execute()
+                val response = slideHttpClient.newCall(
+                    Request.Builder()
+                        .url(webhookUrl)
+                        .post(gson.toJson(payload).toRequestBody("application/json".toMediaType()))
+                        .build()
+                ).execute()
 
                 if (!response.isSuccessful) {
-                    val errorBody = response.body?.string() ?: "Unknown error"
-                    _uiState.value = _uiState.value.copy(
-                        canvaExportStatus = CanvaExportStatus.Error("Webhook error: HTTP ${response.code}. $errorBody")
-                    )
+                    notifySlideError(notifId, "Errore webhook: HTTP ${response.code}")
                     return@launch
                 }
 
-                val responseBody = response.body?.string() ?: ""
-                val webhookResponse = gson.fromJson(responseBody, WebhookResponse::class.java)
-
+                val webhookResponse = gson.fromJson(response.body?.string() ?: "", WebhookResponse::class.java)
                 if (webhookResponse.link.isNotBlank()) {
-                    _uiState.value = _uiState.value.copy(
-                        canvaExportStatus = CanvaExportStatus.Success(webhookResponse.link)
-                    )
+                    notifySlideSuccess(notifId, skill.name, webhookResponse.link)
                 } else {
-                    _uiState.value = _uiState.value.copy(
-                        canvaExportStatus = CanvaExportStatus.Error("No design link returned from webhook")
-                    )
+                    notifySlideError(notifId, "Nessun link ricevuto dal webhook.")
                 }
             } catch (e: IOException) {
-                _uiState.value = _uiState.value.copy(
-                    canvaExportStatus = CanvaExportStatus.Error("Network error: ${e.message ?: "Unknown"}")
-                )
+                notifySlideError(notifId, "Errore di rete: ${e.message ?: "Sconosciuto"}")
             } catch (e: Exception) {
-                _uiState.value = _uiState.value.copy(
-                    canvaExportStatus = CanvaExportStatus.Error(e.message ?: "Unknown error")
-                )
+                notifySlideError(notifId, e.message ?: "Errore sconosciuto")
             }
         }
     }
 
-    fun resetCanvaExport() {
-        _uiState.value = _uiState.value.copy(canvaExportStatus = CanvaExportStatus.Idle)
+    private fun createSlideNotificationChannel() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            val channel = NotificationChannel(
+                SLIDES_CHANNEL_ID, "Generazione Slide", NotificationManager.IMPORTANCE_DEFAULT
+            ).apply { description = "Notifiche per la generazione delle presentazioni" }
+            notifManager.createNotificationChannel(channel)
+        }
+    }
+
+    private fun notifySlideGenerating(notifId: Int, skillName: String, fileName: String) {
+        notifManager.notify(notifId, NotificationCompat.Builder(getApplication(), SLIDES_CHANNEL_ID)
+            .setSmallIcon(R.drawable.ic_notification_mic)
+            .setContentTitle("Generazione slide in corso…")
+            .setContentText("$skillName — $fileName")
+            .setPriority(NotificationCompat.PRIORITY_DEFAULT)
+            .setOngoing(true).setProgress(0, 0, true).build())
+    }
+
+    private fun notifySlideSuccess(notifId: Int, skillName: String, link: String) {
+        val pi = PendingIntent.getActivity(
+            getApplication(), notifId, Intent(Intent.ACTION_VIEW, Uri.parse(link)),
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+        notifManager.notify(notifId, NotificationCompat.Builder(getApplication(), SLIDES_CHANNEL_ID)
+            .setSmallIcon(R.drawable.ic_notification_play)
+            .setContentTitle("Slide pronte!")
+            .setContentText("$skillName — tocca per aprire")
+            .setContentIntent(pi).setAutoCancel(true)
+            .setPriority(NotificationCompat.PRIORITY_HIGH).build())
+    }
+
+    private fun notifySlideError(notifId: Int, message: String) {
+        notifManager.notify(notifId, NotificationCompat.Builder(getApplication(), SLIDES_CHANNEL_ID)
+            .setSmallIcon(R.drawable.ic_notification_stop)
+            .setContentTitle("Errore generazione slide")
+            .setContentText(message)
+            .setPriority(NotificationCompat.PRIORITY_DEFAULT).setAutoCancel(true).build())
     }
 
     private data class WebhookPayload(
@@ -697,13 +721,19 @@ class TranscriptViewModel(application: Application) : AndroidViewModel(applicati
         val skill_name: String,
         val skill_prompt: String,
         val output_type: String,
-        val model: String
+        val model: String,
+        val style: String,
+        val slide_count: Int,
+        val file_name: String
     )
 
-    private data class WebhookResponse(
-        val link: String = "",
-        val status: String = ""
-    )
+    private data class WebhookResponse(val link: String = "", val status: String = "")
+
+    companion object {
+        private const val SLIDES_CHANNEL_ID = "slides_generation"
+        private val activeProcessingIds = java.util.concurrent.CopyOnWriteArraySet<String>()
+        fun isProcessingActive(meetingId: String): Boolean = meetingId in activeProcessingIds
+    }
 
     private suspend fun onError(meetingId: String, message: String) {
         _uiState.value = _uiState.value.copy(

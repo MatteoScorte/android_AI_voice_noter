@@ -8,6 +8,9 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.ui.window.Dialog
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -29,6 +32,7 @@ import com.transcriber.app.api.AVAILABLE_MODELS
 import com.transcriber.app.api.LlmModel
 import com.transcriber.app.data.CanvaSkillEntity
 import com.transcriber.app.data.ChatMessageEntity
+import com.transcriber.app.ui.components.MarkdownText
 import com.transcriber.app.ui.theme.*
 import com.transcriber.app.viewmodel.ChatConversationUiState
 import com.transcriber.app.viewmodel.ChatExportStatus
@@ -40,14 +44,23 @@ fun ChatScreen(
     onBack: () -> Unit,
     onSendMessage: (String) -> Unit,
     onClearError: () -> Unit,
-    onExportSkill: (CanvaSkillEntity) -> Unit,
+    onExportSkill: (CanvaSkillEntity, String, String, Int, String) -> Unit,
     onResetExport: () -> Unit,
-    onUpdateModel: (String) -> Unit
+    onUpdateModel: (String) -> Unit,
+    onRenameChat: (String) -> Unit,
+    onUpdateAgentPrompt: (String) -> Unit
 ) {
     var inputText by remember { mutableStateOf("") }
     var showSkillSheet by remember { mutableStateOf(false) }
     var showModelSheet by remember { mutableStateOf(false) }
+    var showBotMenu by remember { mutableStateOf(false) }
+    var showRenameDialog by remember { mutableStateOf(false) }
+    var showAgentPromptDialog by remember { mutableStateOf(false) }
     var lastSelectedSkill by remember { mutableStateOf<CanvaSkillEntity?>(null) }
+    var lastSelectedStyle by remember { mutableStateOf("blank") }
+    var lastSelectedModelId by remember { mutableStateOf("") }
+    var lastSelectedSlideCount by remember { mutableStateOf(10) }
+    var lastSelectedFileName by remember { mutableStateOf("") }
     val listState = rememberLazyListState()
 
     // Close skill sheet automatically when generation succeeds (status returns to Idle)
@@ -70,13 +83,16 @@ fun ChatScreen(
         topBar = {
             TopAppBar(
                 title = {
-                    Column {
-                        Text(
-                            uiState.conversation?.title ?: "Chat",
-                            fontWeight = FontWeight.SemiBold,
-                            fontSize = 17.sp,
-                            color = TextWhite
-                        )
+                    Column(modifier = Modifier.clickable { showRenameDialog = true }) {
+                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                            Text(
+                                uiState.conversation?.title ?: "Chat",
+                                fontWeight = FontWeight.SemiBold,
+                                fontSize = 17.sp,
+                                color = TextWhite
+                            )
+                            Icon(Icons.Default.Edit, null, tint = TextGray.copy(alpha = 0.35f), modifier = Modifier.size(13.dp))
+                        }
                         uiState.conversation?.meetingTitle?.let { mtitle ->
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 Icon(
@@ -101,12 +117,25 @@ fun ChatScreen(
                     }
                 },
                 actions = {
-                    IconButton(onClick = { showModelSheet = true }) {
-                        Icon(
-                            Icons.Default.SmartToy,
-                            "Cambia modello",
-                            tint = TextGray.copy(alpha = 0.8f)
-                        )
+                    Box {
+                        IconButton(onClick = { showBotMenu = true }) {
+                            Icon(Icons.Default.SmartToy, "Agente AI", tint = TextGray.copy(alpha = 0.8f))
+                        }
+                        DropdownMenu(
+                            expanded = showBotMenu,
+                            onDismissRequest = { showBotMenu = false }
+                        ) {
+                            DropdownMenuItem(
+                                text = { Text("Prompt agente", color = TextWhite, fontSize = 14.sp) },
+                                leadingIcon = { Icon(Icons.Default.Edit, null, tint = TextGray, modifier = Modifier.size(18.dp)) },
+                                onClick = { showBotMenu = false; showAgentPromptDialog = true }
+                            )
+                            DropdownMenuItem(
+                                text = { Text("Modello AI", color = TextWhite, fontSize = 14.sp) },
+                                leadingIcon = { Icon(Icons.Default.Tune, null, tint = TextGray, modifier = Modifier.size(18.dp)) },
+                                onClick = { showBotMenu = false; showModelSheet = true }
+                            )
+                        }
                     }
                     if (uiState.conversation?.meetingId != null) {
                         IconButton(onClick = { showSkillSheet = true }) {
@@ -262,17 +291,104 @@ fun ChatScreen(
         )
     }
 
-    // ── Skill selector bottom sheet ───────────────────────────────────────────
-    if (showSkillSheet) {
-        SkillSelectorSheet(
-            skills = uiState.skills,
-            exportStatus = uiState.exportStatus,
-            lastSelectedSkill = lastSelectedSkill,
-            onSkillSelected = { skill ->
-                lastSelectedSkill = skill
-                onExportSkill(skill)
+    // ── Rename chat dialog ────────────────────────────────────────────────────
+    if (showRenameDialog) {
+        var renameText by remember { mutableStateOf(uiState.conversation?.title ?: "") }
+        AlertDialog(
+            onDismissRequest = { showRenameDialog = false },
+            containerColor = DarkSurface,
+            title = {
+                Text("RINOMINA CHAT", letterSpacing = 1.sp, color = AccentGreen,
+                    fontWeight = FontWeight.Bold, style = MaterialTheme.typography.labelLarge)
             },
-            onRetry = { lastSelectedSkill?.let { onExportSkill(it) } },
+            text = {
+                OutlinedTextField(
+                    value = renameText,
+                    onValueChange = { renameText = it },
+                    singleLine = true,
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedTextColor = TextWhite, unfocusedTextColor = TextWhite,
+                        focusedBorderColor = AccentGreen, unfocusedBorderColor = DarkSurfaceVariant,
+                        cursorColor = AccentGreen,
+                        focusedContainerColor = DarkBackground, unfocusedContainerColor = DarkBackground
+                    ),
+                    shape = RoundedCornerShape(8.dp)
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = { if (renameText.isNotBlank()) { onRenameChat(renameText); showRenameDialog = false } },
+                    enabled = renameText.isNotBlank()
+                ) { Text("SALVA", color = AccentGreen, fontWeight = FontWeight.SemiBold) }
+            },
+            dismissButton = {
+                TextButton(onClick = { showRenameDialog = false }) { Text("ANNULLA", color = TextGray) }
+            }
+        )
+    }
+
+    // ── Agent prompt dialog ───────────────────────────────────────────────────
+    if (showAgentPromptDialog) {
+        var promptText by remember { mutableStateOf(uiState.conversation?.agentPrompt ?: "") }
+        Dialog(onDismissRequest = { showAgentPromptDialog = false }) {
+            Surface(shape = RoundedCornerShape(16.dp), color = DarkSurface, modifier = Modifier.fillMaxWidth()) {
+                Column(modifier = Modifier.padding(24.dp)) {
+                    Text("ISTRUZIONI AGGIUNTIVE", letterSpacing = 1.sp, color = AccentGreen,
+                        fontWeight = FontWeight.Bold, style = MaterialTheme.typography.labelLarge)
+                    Spacer(Modifier.height(4.dp))
+                    Text(
+                        "Aggiungi istruzioni specifiche per questa chat. Si sommano al comportamento base di Voxlog, che rimane sempre attivo.",
+                        color = TextGray.copy(alpha = 0.7f), style = MaterialTheme.typography.bodySmall, lineHeight = 17.sp
+                    )
+                    Spacer(Modifier.height(12.dp))
+                    OutlinedTextField(
+                        value = promptText,
+                        onValueChange = { promptText = it },
+                        placeholder = {
+                            Text("Es. Sei un esperto di marketing. Rispondi sempre con esempi pratici e un tono diretto...",
+                                color = TextGray.copy(alpha = 0.4f), style = MaterialTheme.typography.bodySmall)
+                        },
+                        modifier = Modifier.fillMaxWidth().heightIn(min = 160.dp),
+                        minLines = 6,
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedTextColor = TextWhite, unfocusedTextColor = TextWhite,
+                            focusedBorderColor = AccentGreen, unfocusedBorderColor = DarkSurfaceVariant,
+                            cursorColor = AccentGreen,
+                            focusedContainerColor = DarkBackground, unfocusedContainerColor = DarkBackground
+                        ),
+                        shape = RoundedCornerShape(8.dp),
+                        textStyle = MaterialTheme.typography.bodySmall.copy(color = TextWhite, lineHeight = 20.sp)
+                    )
+                    Spacer(Modifier.height(16.dp))
+                    Row(horizontalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.fillMaxWidth()) {
+                        OutlinedButton(
+                            onClick = { showAgentPromptDialog = false },
+                            modifier = Modifier.weight(1f).height(44.dp),
+                            border = androidx.compose.foundation.BorderStroke(1.dp, DarkSurfaceVariant),
+                            colors = ButtonDefaults.outlinedButtonColors(contentColor = TextGray),
+                            shape = RoundedCornerShape(8.dp)
+                        ) { Text("ANNULLA", fontSize = 12.sp) }
+                        Button(
+                            onClick = { onUpdateAgentPrompt(promptText); showAgentPromptDialog = false },
+                            modifier = Modifier.weight(1f).height(44.dp),
+                            colors = ButtonDefaults.buttonColors(containerColor = AccentGreen, contentColor = DarkBackground),
+                            shape = RoundedCornerShape(8.dp)
+                        ) { Text("SALVA", fontSize = 12.sp, fontWeight = FontWeight.Bold) }
+                    }
+                }
+            }
+        }
+    }
+
+    // ── Slide creation wizard ─────────────────────────────────────────────────
+    if (showSkillSheet) {
+        com.transcriber.app.ui.components.SlideSelectorDialog(
+            skills = uiState.skills,
+            currentModelId = uiState.currentModel,
+            defaultFileName = uiState.conversation?.meetingTitle ?: uiState.conversation?.title ?: "",
+            onGenerate = { skill, style, modelId, slideCount, fileName ->
+                onExportSkill(skill, style, modelId, slideCount, fileName)
+            },
             onDismiss = {
                 showSkillSheet = false
                 onResetExport()
@@ -350,132 +466,6 @@ private fun ModelSelectorSheet(
     }
 }
 
-// ── Skill selector bottom sheet ───────────────────────────────────────────────
-
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-private fun SkillSelectorSheet(
-    skills: List<CanvaSkillEntity>,
-    exportStatus: ChatExportStatus,
-    lastSelectedSkill: CanvaSkillEntity?,
-    onSkillSelected: (CanvaSkillEntity) -> Unit,
-    onRetry: () -> Unit,
-    onDismiss: () -> Unit
-) {
-    ModalBottomSheet(
-        onDismissRequest = onDismiss,
-        containerColor = DarkSurface,
-        dragHandle = { BottomSheetDefaults.DragHandle(color = DarkSurfaceVariant) }
-    ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 24.dp)
-                .padding(bottom = 32.dp),
-            horizontalAlignment = Alignment.CenterHorizontally
-        ) {
-            when (exportStatus) {
-                is ChatExportStatus.Generating -> {
-                    Spacer(Modifier.height(24.dp))
-                    CircularProgressIndicator(color = AccentGreen, modifier = Modifier.size(40.dp))
-                    Spacer(Modifier.height(16.dp))
-                    Text(
-                        "Generazione in corso...",
-                        color = TextWhite,
-                        fontWeight = FontWeight.SemiBold,
-                        fontSize = 16.sp
-                    )
-                    Spacer(Modifier.height(6.dp))
-                    lastSelectedSkill?.let { skill ->
-                        Text(
-                            "${skill.emoji} ${skill.name}",
-                            color = TextGray,
-                            fontSize = 13.sp
-                        )
-                    }
-                    Spacer(Modifier.height(24.dp))
-                }
-
-                is ChatExportStatus.Error -> {
-                    Spacer(Modifier.height(16.dp))
-                    Icon(
-                        Icons.Default.ErrorOutline, null,
-                        tint = ErrorRed,
-                        modifier = Modifier.size(36.dp)
-                    )
-                    Spacer(Modifier.height(12.dp))
-                    Text(
-                        exportStatus.message,
-                        color = ErrorRed,
-                        style = MaterialTheme.typography.bodySmall,
-                        textAlign = androidx.compose.ui.text.style.TextAlign.Center
-                    )
-                    Spacer(Modifier.height(20.dp))
-                    Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                        OutlinedButton(
-                            onClick = onDismiss,
-                            border = androidx.compose.foundation.BorderStroke(1.dp, DarkSurfaceVariant),
-                            colors = ButtonDefaults.outlinedButtonColors(contentColor = TextGray),
-                            shape = RoundedCornerShape(8.dp)
-                        ) { Text("Chiudi", fontSize = 13.sp) }
-                        if (lastSelectedSkill != null) {
-                            OutlinedButton(
-                                onClick = onRetry,
-                                border = androidx.compose.foundation.BorderStroke(1.dp, AccentGreen.copy(alpha = 0.5f)),
-                                colors = ButtonDefaults.outlinedButtonColors(contentColor = AccentGreen),
-                                shape = RoundedCornerShape(8.dp)
-                            ) { Text("Riprova", fontSize = 13.sp) }
-                        }
-                    }
-                    Spacer(Modifier.height(16.dp))
-                }
-
-                is ChatExportStatus.Idle -> {
-                    Text(
-                        "CREA PRESENTAZIONE",
-                        letterSpacing = 1.sp,
-                        style = MaterialTheme.typography.labelLarge,
-                        color = AccentGreen,
-                        fontWeight = FontWeight.Bold
-                    )
-                    Spacer(Modifier.height(4.dp))
-                    Text(
-                        "Seleziona un template per generare la presentazione dall'audio",
-                        color = TextGray.copy(alpha = 0.7f),
-                        style = MaterialTheme.typography.bodySmall,
-                        textAlign = androidx.compose.ui.text.style.TextAlign.Center,
-                        lineHeight = 17.sp
-                    )
-                    Spacer(Modifier.height(20.dp))
-                    skills.forEach { skill ->
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clip(RoundedCornerShape(10.dp))
-                                .clickable { onSkillSelected(skill) }
-                                .padding(vertical = 12.dp, horizontal = 8.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Text(skill.emoji, fontSize = 24.sp)
-                            Spacer(Modifier.width(14.dp))
-                            Column(Modifier.weight(1f)) {
-                                Text(skill.name, color = TextWhite, fontWeight = FontWeight.Medium, fontSize = 14.sp)
-                                Text(skill.outputType, color = TextGray, fontSize = 12.sp)
-                            }
-                            Icon(
-                                Icons.Default.ChevronRight, null,
-                                tint = TextGray.copy(alpha = 0.4f),
-                                modifier = Modifier.size(18.dp)
-                            )
-                        }
-                        HorizontalDivider(color = DarkSurfaceVariant.copy(alpha = 0.5f), thickness = 0.5.dp)
-                    }
-                }
-            }
-        }
-    }
-}
-
 // ── Message bubbles ───────────────────────────────────────────────────────────
 
 @Composable
@@ -503,12 +493,18 @@ private fun MessageBubble(msg: ChatMessageEntity) {
                 )
                 .padding(horizontal = 14.dp, vertical = 10.dp)
         ) {
-            Text(
-                msg.content,
-                color = if (isUser) DarkBackground else TextWhite,
-                fontSize = 14.sp,
-                lineHeight = 20.sp
-            )
+            if (isUser) {
+                Text(msg.content, color = DarkBackground, fontSize = 14.sp, lineHeight = 20.sp)
+            } else {
+                MarkdownText(
+                    text = msg.content,
+                    style = androidx.compose.ui.text.TextStyle(
+                        color = TextWhite,
+                        fontSize = 14.sp,
+                        lineHeight = 20.sp
+                    )
+                )
+            }
         }
     }
 }

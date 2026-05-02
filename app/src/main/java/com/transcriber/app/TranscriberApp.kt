@@ -102,8 +102,9 @@ fun TranscriberApp() {
                     onPlayPause = { viewModel.playPause() },
                     onSeekTo = { ms -> viewModel.seekTo(ms) },
                     onShareToCloud = { viewModel.shareMeeting() },
-                    onExportToCanva = { skill -> viewModel.exportToWebhook(skill) },
-                    onResetCanvaExport = { viewModel.resetCanvaExport() }
+                    onExportToSlide = { skill, style, modelId, slideCount, fileName ->
+                        viewModel.exportToWebhook(skill, style, modelId, slideCount, fileName)
+                    }
                 )
             }
 
@@ -186,9 +187,11 @@ fun TranscriberApp() {
                     onBack = { navController.popBackStack() },
                     onSendMessage = { viewModel.sendMessage(it) },
                     onClearError = { viewModel.clearError() },
-                    onExportSkill = { viewModel.exportToWebhook(it) },
+                    onExportSkill = { skill, style, modelId, slideCount, fileName -> viewModel.exportToWebhook(skill, style, modelId, slideCount, fileName) },
                     onResetExport = { viewModel.resetExport() },
-                    onUpdateModel = { viewModel.updateModel(it) }
+                    onUpdateModel = { viewModel.updateModel(it) },
+                    onRenameChat = { viewModel.renameTitle(it) },
+                    onUpdateAgentPrompt = { viewModel.updateAgentPrompt(it) }
                 )
             }
 

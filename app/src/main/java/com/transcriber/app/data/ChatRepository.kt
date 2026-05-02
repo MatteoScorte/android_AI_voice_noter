@@ -50,6 +50,18 @@ class ChatRepository(context: Context) {
         return msg
     }
 
+    suspend fun renameConversation(id: String, newTitle: String) {
+        dao.getConversationByIdOnce(id)?.let { conv ->
+            dao.updateConversation(conv.copy(title = newTitle))
+        }
+    }
+
+    suspend fun updateAgentPrompt(id: String, prompt: String) {
+        dao.getConversationByIdOnce(id)?.let { conv ->
+            dao.updateConversation(conv.copy(agentPrompt = prompt))
+        }
+    }
+
     suspend fun deleteConversation(conversation: ChatConversationEntity) {
         dao.deleteMessagesForConversation(conversation.id)
         dao.deleteConversation(conversation)

@@ -118,8 +118,8 @@ fun SettingsScreen(
                         DropdownMenuItem(
                             text = {
                                 Column {
-                                    Text(model.displayName, color = DarkBackground, fontWeight = FontWeight.Medium)
-                                    Text(model.description, color = DarkBackground.copy(alpha = 0.7f), style = MaterialTheme.typography.bodySmall)
+                                    Text(model.displayName, color = TextWhite, fontWeight = FontWeight.Medium)
+                                    Text(model.description, color = TextGray, style = MaterialTheme.typography.bodySmall)
                                 }
                             },
                             onClick = { onUpdateModel(model.id); modelExpanded = false }
